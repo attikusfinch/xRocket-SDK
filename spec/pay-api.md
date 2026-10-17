@@ -83,7 +83,8 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 ## 4. Поддерживаемые методы SDK
 
 Read-only методы проверяют общий transport, auth, сериализацию параметров, ошибки
-и модели. Invoice create/delete добавлены P009, payment address — P010
+и модели. Invoice create/delete добавлены P009, payment address — P010,
+cheque create/update/delete — P011
 поверх request foundation P008;
 их реализация и проверка offline не означают запуск реальных мутаций.
 
@@ -284,6 +285,58 @@ PAY-005; payer и blockchain tx details типизированы. Неизвес
 `InvoicePaymentDto`, `InvoiceInternalTransactionDto`,
 `InvoiceBlockchainTransactionDto` и их nested DTO. Проверено offline;
 nullable overrides пока не подтверждены реальными payment records.
+
+### `cheques.create(request=ChequeCreateRequest(...))`
+
+`POST /api/v1/cheques`, обязательный JWT, exact HTTP 200 с `Cheque`.
+Request DTO отдельны от response: strict типы, camelCase aliases, extra forbid.
+Публичны `ChequeCreateRequest`, `ChequeCallbackRequest`, `ChequeURLRequest` и
+`ChequeUpdateRequest` из `xrocket.pay` и `xrocket.pay.models`.
+
+| Python поле | Wire alias | Контракт create |
+|---|---|---|
+| asset | asset | required str |
+| amount | amount | required finite Decimal/decimal string → JSON string |
+| client_cheque_id | clientChequeId | optional str, maxLength 50 |
+| password | password | optional SecretStr/string input, maxLength 100 |
+| description | description | optional str, maxLength 1000 |
+| target_type | targetType | optional enum user_id / telegram_user_id / telegram_username |
+| target | target | optional str, maxLength 100; передаётся вместе с target_type |
+| callback | callback | отдельный request DTO; callback_url max500, payload object |
+| url | url | отдельный request DTO; success_url / cancel_url max500 |
+
+Все optional свойства можно опустить; explicit None запрещён по non-nullable
+schema. Пустые строки/объекты допустимы, minLength/bounds суммы не угаданы.
+Payload 4KB описан prose без size metric; локальный лимит не вводится.
+Password скрыт в repr и обычных model dumps; cheque validation удаляет input
+из ошибок валидации полей и model policies, включая structured errors/json.
+Request serializer явно раскрывает SecretStr только через password field serializer
+в outbound JSON bytes. Эти байты и произвольный raw server problem являются
+явно доступными данными: вызывающий код не должен журналировать их с секретами.
+SDK body не журналирует; сообщения HTTP/timeout/response ошибок остаются общими.
+
+### `cheques.update(request=ChequeUpdateRequest(...), cheque_id=None, client_cheque_id=None)`
+
+`PUT /api/v1/cheques`, обязательный JWT, exact HTTP 200 с `Cheque`.
+Body содержит только optional description str max1000. Unset → `{}` (schema
+допускает), `description=""` явно очищает описание, `None` отвергается.
+Amount, asset, password, IDs, response extras и остальные create поля запрещены.
+Resource принимает именно update DTO, без автоматического переноса response.
+
+### `cheques.delete(cheque_id=None, client_cheque_id=None)`
+
+`DELETE /api/v1/cheques`, обязательный JWT, без request body. Только пустой
+HTTP 200 возвращает None; whitespace/JSON null/JSON object отвергаются (PAY-014).
+Update/delete identifiers передаются в query: хотя бы один непустой str 1–100
+(minimum — прежний SDK guard). Оба передаются буквально, приоритет не обещается.
+Create client ID max50 не переносится на query max100.
+Неожиданные 2xx/повреждённые JSON или Cheque вызывают ResponseValidationError;
+non-2xx использует общий problem decoder. Одна попытка, без retries/ID generation.
+
+Источники: `#/paths/~1api~1v1~1cheques/post`, `.../put`, `.../delete`,
+`ChequeCreateRequestDto`, `ChequeUpdateRequestDto`, `ChequeCallbackRequestDto`,
+`ChequeUrlRequestDto`, `ChequeResponseDto`. Подтверждение только offline;
+live cheque mutations не выполнялись.
 
 ### `cheques.list(...)`
 

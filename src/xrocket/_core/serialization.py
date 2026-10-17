@@ -5,7 +5,7 @@ from decimal import Decimal, InvalidOperation
 from math import isfinite
 from typing import Annotated, Any
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, ConfigDict, PlainSerializer, SecretStr
 
 
 def _request_money(value: Any) -> Decimal:
@@ -57,7 +57,7 @@ def _check_request_values(value: object, active: set[int]) -> None:
         children = list(value.values())
     elif isinstance(value, (list, tuple)):
         children = list(value)
-    elif value is None or isinstance(value, (str, bool, int, float, Decimal)):
+    elif value is None or isinstance(value, (str, bool, int, float, Decimal, SecretStr)):
         return
     else:
         raise TypeError("Request payloads must contain JSON values or request models")
@@ -113,7 +113,13 @@ def serialize_request(model: RequestModel) -> bytes:
     validated = _revalidate_request_values(model)
     assert isinstance(validated, RequestModel)
     _check_request_values(validated, set())
-    payload = validated.model_dump(mode="json", by_alias=True, exclude_unset=True, warnings="error")
+    payload = validated.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_unset=True,
+        warnings="error",
+        context={"request_wire": True},
+    )
     _check_request_values(payload, set())
     return json.dumps(payload, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode(
         "utf-8"

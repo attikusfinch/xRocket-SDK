@@ -7,8 +7,8 @@
 
 - Python SDK `xrocket-sdk` 0.1.0.dev0, `src` layout, HTTPX/Pydantic, Python 3.11+.
 - `PayClient` / `AsyncPayClient`: app, cheques, currencies, health, rates, invoices,
-  payouts, withdrawals. Реализованы 18 из 25 Current Pay операций:
-  все 15 GET, invoice create/delete и создание payment address.
+  payouts, withdrawals. Реализована 21 из 25 Current Pay операций:
+  все 15 GET, invoice create/delete, создание payment address и cheque create/update/delete.
 - `health.get()` публичен; invoices поддерживают list/retrieve/payments, cheques
   и payouts — list/retrieve, withdrawals — list/retrieve/quotas.
   Каждый list читает одну страницу. Invoice payments имеют typed transactions
@@ -40,6 +40,15 @@
   Response expires_at обязателен и aware (без nullable override PAY-003),
   min_amount — optional Decimal; explicit null отвергается. Unknown response
   networks/fields сохраняются, реальные адреса через API не создавались.
+- P011: `cheques.create(request=ChequeCreateRequest(...))`,
+  `update(request=ChequeUpdateRequest(...), cheque_id=..., client_cheque_id=...)`
+  и `delete(cheque_id=..., client_cheque_id=...)` используют plural `/api/v1/cheques`.
+  Create требует asset/точный amount, client ID max50; query IDs 1–100.
+  Update разрешает только description: omission → {}, пустая строка очищает,
+  explicit None запрещён. Create/update возвращают Cheque на 200, delete —
+  None на строго пустой 200. Password — SecretStr, обычные dumps/repr маскируются,
+  field/model validation inputs удаляются из structured errors; raw HTTP body
+  доступен явно. Cheque response и прежние public imports сохранены.
 - Pay-модели разделены по реализованным ресурсам в `pay/models/`, с отдельными
   `_base` (response config/Money) и pagination. Прежние public imports
   из `xrocket.pay.models` и `xrocket.pay` сохранены.
@@ -93,11 +102,17 @@ Ruff, strict mypy (30 files), wheel/sdist и wheel-only sync/async invoice mock 
 required поля не теряются из-за вручную пустого fields_set; исходные DTO не меняются.
 Live invoice mutations не выполнялись.
 
-Последняя задача [P010](handoffs/P010-01.md): 180 целевых и 1660 full offline tests
+Задача [P010](handoffs/P010-01.md): 180 целевых и 1660 full offline tests
 прошли с session-loop override (40 live deselected), Ruff и strict mypy (30 files)
 прошли. Wheel/sdist и wheel-only sync/async payment address smoke прошли.
-Локальный commit — кандидат для отдельного review координатора; push и live
-address creation worker не выполняет.
+Независимое review принято: [P010-01](reviews/P010-01.md); координатор опубликовал
+результат до начала P011. Live address creation не выполнялся.
+
+Последняя задача [P011](handoffs/P011-01.md): 744 целевых (cheque reads/writes +
+request serialization/write transport) и 1955 full offline tests прошли
+с session-loop override (40 live deselected). Ruff, strict mypy (31 files),
+wheel/sdist и wheel-only sync/async cheque smoke прошли. Локальный commit —
+кандидат для отдельного review координатора; push/live mutations worker не выполняет.
 
 ## Ограничения и ближайшее направление
 
@@ -117,7 +132,7 @@ PAY-016: create clientWithdrawalId допускает 150, GET — 100; обще
 
 Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
-Следующая доступная задача — P011 (create/update/delete cheques);
+Следующая доступная задача — P012 (создание одиночного payout);
 она не начата. Продолжение — через `tools/session.py next`,
 чтение её карточки и handoff прямой зависимости по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.

@@ -1,4 +1,4 @@
-"""Explicit single-page cheque reads using the Current Pay routes."""
+"""Explicit cheque reads and request-backed mutations using Current Pay routes."""
 
 from datetime import datetime
 from typing import Literal
@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import Cheque, CursorPage
+from xrocket.pay.models import Cheque, ChequeCreateRequest, ChequeUpdateRequest, CursorPage
 
 _CHEQUE = TypeAdapter(Cheque)
 _PAGE = TypeAdapter(CursorPage[Cheque])
@@ -74,6 +74,48 @@ class ChequesResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
+    def create(self, *, request: ChequeCreateRequest) -> Cheque:
+        """Create a cheque from an explicit request DTO, with no retries."""
+        if not isinstance(request, ChequeCreateRequest):
+            raise TypeError("request must be a ChequeCreateRequest")
+        return self._transport.request(
+            "POST", "/api/v1/cheques", _CHEQUE, success_statuses=(200,), body=request
+        )
+
+    def update(
+        self,
+        *,
+        request: ChequeUpdateRequest,
+        cheque_id: str | None = None,
+        client_cheque_id: str | None = None,
+    ) -> Cheque:
+        """Update description by either identifier; use '' to clear it."""
+        if not isinstance(request, ChequeUpdateRequest):
+            raise TypeError("request must be a ChequeUpdateRequest")
+        return self._transport.request(
+            "PUT",
+            "/api/v1/cheques",
+            _CHEQUE,
+            success_statuses=(200,),
+            params=_retrieve_params(cheque_id, client_cheque_id),
+            body=request,
+        )
+
+    def delete(
+        self,
+        *,
+        cheque_id: str | None = None,
+        client_cheque_id: str | None = None,
+    ) -> None:
+        """Cancel a cheque by either identifier; expect an empty HTTP 200."""
+        return self._transport.request(
+            "DELETE",
+            "/api/v1/cheques",
+            None,
+            success_statuses=(200,),
+            params=_retrieve_params(cheque_id, client_cheque_id),
+        )
+
     def list(
         self,
         *,
@@ -109,6 +151,48 @@ class ChequesResource:
 class AsyncChequesResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    async def create(self, *, request: ChequeCreateRequest) -> Cheque:
+        """Create a cheque from an explicit request DTO, with no retries."""
+        if not isinstance(request, ChequeCreateRequest):
+            raise TypeError("request must be a ChequeCreateRequest")
+        return await self._transport.request(
+            "POST", "/api/v1/cheques", _CHEQUE, success_statuses=(200,), body=request
+        )
+
+    async def update(
+        self,
+        *,
+        request: ChequeUpdateRequest,
+        cheque_id: str | None = None,
+        client_cheque_id: str | None = None,
+    ) -> Cheque:
+        """Update description by either identifier; use '' to clear it."""
+        if not isinstance(request, ChequeUpdateRequest):
+            raise TypeError("request must be a ChequeUpdateRequest")
+        return await self._transport.request(
+            "PUT",
+            "/api/v1/cheques",
+            _CHEQUE,
+            success_statuses=(200,),
+            params=_retrieve_params(cheque_id, client_cheque_id),
+            body=request,
+        )
+
+    async def delete(
+        self,
+        *,
+        cheque_id: str | None = None,
+        client_cheque_id: str | None = None,
+    ) -> None:
+        """Cancel a cheque by either identifier; expect an empty HTTP 200."""
+        return await self._transport.request(
+            "DELETE",
+            "/api/v1/cheques",
+            None,
+            success_statuses=(200,),
+            params=_retrieve_params(cheque_id, client_cheque_id),
+        )
 
     async def list(
         self,

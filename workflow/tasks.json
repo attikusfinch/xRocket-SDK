@@ -252,13 +252,13 @@
     {
       "id": "P011",
       "title": "Мутации cheques: create, update и delete",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P008",
         "P004"
       ],
       "card": "tasks/P011.md",
-      "handoff": null,
+      "handoff": "handoffs/P011-01.md",
       "operations": [
         {
           "method": "POST",

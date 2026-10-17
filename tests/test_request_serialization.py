@@ -4,7 +4,15 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SecretStr,
+    TypeAdapter,
+    ValidationError,
+    field_serializer,
+)
 from pydantic.alias_generators import to_camel
 
 from xrocket._core.serialization import RequestModel, RequestMoney, serialize_request
@@ -28,6 +36,13 @@ class PayloadRequest(RequestModel):
 
 class OtherModel(BaseModel):
     pass
+
+
+def test_secret_values_stay_masked_without_an_explicit_product_wire_serializer() -> None:
+    secret = SecretStr("synthetic-secret-marker")
+    request = PayloadRequest(payload={"nested": [secret]})
+    assert json.loads(serialize_request(request)) == {"payload": {"nested": ["**********"]}}
+    assert secret.get_secret_value() == "synthetic-secret-marker"
 
 
 @pytest.mark.parametrize(

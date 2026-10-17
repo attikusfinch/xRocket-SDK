@@ -30,6 +30,7 @@ src/xrocket/
       invoices.py        # Invoice и вложенные response DTO
       invoice_payments.py # платежи invoice, transaction types и отдельная page
       invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
+      cheque_requests.py # отдельные ChequeCreate/Update/Callback/URLRequest
     resources/           # app, cheques, currencies, health, rates, invoices, payouts, withdrawals
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
@@ -86,7 +87,10 @@ extra запрещены, instances повторно валидируются п
 missing опускается, явный None остаётся null, включая вложенные request DTO.
 Response BaseModel, даже внутри payload, не превращается в request автоматически.
 Payload graph ограничен JSON primitives, finite Decimal, dict со строковыми ключами,
-list/tuple и RequestModel. Неявных dataclass/bytes/date converters нет; продуктовый
+list/tuple, SecretStr и RequestModel. SecretStr по умолчанию маскируется;
+продуктовый field serializer явно раскрывает требуемый секрет в контексте
+`request_wire=True`, который задаёт только serialize_request. Неявных
+dataclass/bytes/date converters нет; продуктовый
 DTO готовит требуемое wire значение явно. Вложенные RequestModel проверяются
 также внутри Any, без изменения исходных объектов и их missing/explicit состояния.
 Обязательные validated fields не могут исчезнуть при exclude_unset даже после
@@ -99,6 +103,13 @@ request models со strict типами и camelCase aliases. Только price
 из-за PAY-008. None defaults обозначают omission, explicit None отвергается
 по non-nullable OAS. Ресурс принимает `create(request=...)`, возвращает Invoice
 на 200; `delete(invoice_id=..., client_invoice_id=...)` ждёт пустой 200 и возвращает None.
+
+Cheque request DTO живут отдельно от response и invoice inputs. Create требует
+asset/amount, update разрешает только optional description (пустая строка очищает).
+None означает только unset default; explicit null запрещён. Password — SecretStr,
+repr и обычные dumps скрывают его; validation input удаляется из field/model errors.
+Create/update возвращают Cheque на 200, delete ждёт пустой 200; все mutation paths
+plural, identifiers update/delete передаются в query прежним cheque helper.
 
 `SyncTransport.request()` / `AsyncTransport.request()` принимают GET/POST/PUT/DELETE,
 явный tuple success_statuses и response adapter: TypeAdapter означает JSON decode,

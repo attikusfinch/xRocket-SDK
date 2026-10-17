@@ -2,6 +2,12 @@
 
 from ._base import Money
 from .app import AppBalances, AppInfo, Balance
+from .cheque_requests import (
+    ChequeCallbackRequest,
+    ChequeCreateRequest,
+    ChequeUpdateRequest,
+    ChequeURLRequest,
+)
 from .cheques import Cheque, ChequeCallback, ChequeLinks, ChequeURL
 from .currencies import Currency, CurrencyNetwork
 from .health import Health, HealthComponent
@@ -41,8 +47,12 @@ __all__ = [
     "Balance",
     "Cheque",
     "ChequeCallback",
+    "ChequeCallbackRequest",
+    "ChequeCreateRequest",
     "ChequeLinks",
     "ChequeURL",
+    "ChequeURLRequest",
+    "ChequeUpdateRequest",
     "Currency",
     "CurrencyNetwork",
     "CursorPage",

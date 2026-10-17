@@ -34,6 +34,9 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.invoices.create_payment_address(request=InvoiceCreatePaymentAddressRequest(...), invoice_id=...)` | `POST /api/v1/invoices/payments/address` |
 | `pay.cheques.list(...)` | `GET /api/v1/cheques` |
 | `pay.cheques.retrieve(cheque_id=..., client_cheque_id=...)` | `GET /api/v1/cheque` |
+| `pay.cheques.create(request=ChequeCreateRequest(...))` | `POST /api/v1/cheques` |
+| `pay.cheques.update(request=ChequeUpdateRequest(...), cheque_id=...)` | `PUT /api/v1/cheques` |
+| `pay.cheques.delete(cheque_id=..., client_cheque_id=...)` | `DELETE /api/v1/cheques` |
 | `pay.payouts.list(from_date=..., to_date=..., cursor=..., limit=...)` | `GET /api/v1/payouts` |
 | `pay.payouts.retrieve(payout_id=..., client_payout_id=...)` | `GET /api/v1/payout` |
 | `pay.withdrawals.list(from_date=..., to_date=..., status=..., cursor=..., limit=...)` | `GET /api/v1/withdrawals` |
@@ -89,6 +92,17 @@ print(address.address, address.expires_at, address.min_amount)
 `asset`, `links`, `deleted`; ссылки внутри `links` и `state` необязательны.
 Отменённый чек может читаться через retrieve с `deleted=True`; list исключает
 отменённые чеки по контракту API. Поле суммы в Current ChequeResponseDto не описано.
+`cheques.create()` принимает отдельный `ChequeCreateRequest` с обязательными `asset`
+и `amount` (Decimal/decimal string), client ID до 50 символов и парными target fields.
+`ChequeCallbackRequest` / `ChequeURLRequest` задают вложенные webhook/redirect параметры.
+Все request DTO доступны из `xrocket.pay` и `xrocket.pay.models`, extra fields запрещены.
+Password хранится как SecretStr: repr и обычные dumps маскируют значение; исходное
+значение попадает только в подготовленный HTTP body. Не записывайте этот body в логи.
+`cheques.update(request=ChequeUpdateRequest(description=""), cheque_id=...)` очищает
+описание; omission оставляет его без изменения, explicit None запрещён.
+Update поддерживает только description. Update/delete требуют ID длиной 1–100,
+передают оба при наличии. Все три mutation paths plural; create/update возвращают
+Cheque только на HTTP 200, delete — None на строго пустой HTTP 200.
 `payouts.list()` возвращает одну `CursorPage[Payout]`; даты принимаются как datetime
 с часовым поясом, cursor сохраняется буквально. `limit` принимает целое число;
 его диапазон этот GET в OAS не задаёт, SDK оставляет проверку диапазона серверу.
@@ -112,7 +126,7 @@ HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `re
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
 missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
-P010 — создание invoice payment address;
+P010 — создание invoice payment address, P011 — create/update/delete cheques;
 остальные Pay write методы добавляются отдельными задачами с offline проверками.
 
 ## Установка для разработки
