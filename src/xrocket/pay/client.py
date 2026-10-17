@@ -8,6 +8,7 @@ import httpx
 from xrocket._core.transport import AsyncTransport, Environment, SyncTransport
 from xrocket.pay.resources.app import AppResource, AsyncAppResource
 from xrocket.pay.resources.currencies import AsyncCurrenciesResource, CurrenciesResource
+from xrocket.pay.resources.health import AsyncHealthResource, HealthResource
 from xrocket.pay.resources.invoices import AsyncInvoicesResource, InvoicesResource
 from xrocket.pay.resources.rates import AsyncRatesResource, RatesResource
 
@@ -42,6 +43,7 @@ class PayClient:
             http_client=http_client,
         )
         self.app = AppResource(self._transport)
+        self.health = HealthResource(self._transport)
         self.currencies = CurrenciesResource(self._transport)
         self.rates = RatesResource(self._transport)
         self.invoices = InvoicesResource(self._transport)
@@ -80,6 +82,7 @@ class AsyncPayClient:
             http_client=http_client,
         )
         self.app = AsyncAppResource(self._transport)
+        self.health = AsyncHealthResource(self._transport)
         self.currencies = AsyncCurrenciesResource(self._transport)
         self.rates = AsyncRatesResource(self._transport)
         self.invoices = AsyncInvoicesResource(self._transport)

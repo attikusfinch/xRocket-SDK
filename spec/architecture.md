@@ -22,9 +22,11 @@ src/xrocket/
       pagination.py      # CursorPagination / CursorPage, только для Pay
       app.py             # AppInfo / Balance / AppBalances
       currencies.py      # Currency / CurrencyNetwork
+      health.py          # Health / HealthComponent
       rates.py           # Rate
       invoices.py        # Invoice и вложенные response DTO
-    resources/           # app, currencies, rates, invoices
+      invoice_payments.py # платежи invoice, transaction types и отдельная page
+    resources/           # app, currencies, health, rates, invoices
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
 ```

@@ -100,7 +100,11 @@ class _TransportConfig:
     def _request_options(self, path: str, authenticated: bool) -> tuple[str, dict[str, str]]:
         if self._closed:
             raise RuntimeError("Client is closed")
-        if not path.startswith("/api/") or "?" in path or "#" in path:
+        if (
+            (path != "/health" and not path.startswith("/api/"))
+            or "?" in path
+            or "#" in path
+        ):
             raise ValueError("SDK request path must be relative and contain no query or fragment")
         if authenticated and self._api_token is None:
             raise AuthenticationError()

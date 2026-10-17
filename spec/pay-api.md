@@ -84,6 +84,22 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 
 Цель — доказать пригодность общего transport, auth, сериализации параметров, ошибок и моделей, прежде чем реализовывать создание счетов и движение средств.
 
+### `health.get()`
+
+`GET /health` без обязательного JWT, через общий transport обоих клиентов.
+Путь находится вне `/api/v1`; разрешён ровно `/health`, без query/fragment или
+произвольных корневых маршрутов. Настройки HTTP pooling/ownership и auth isolation
+совпадают с остальными публичными методами.
+
+Ответ `Health` содержит обязательные `status: str`, `info`, `error`, `details`.
+Три последних поля — списки `HealthComponent` с обязательными `name: str`,
+`status: str` и необязательным `message`. Статусы остаются строками, неизвестные
+поля сохраняются на обоих уровнях. Не-2xx проходит общую классификацию HTTP ошибок;
+некорректный success response вызывает `ResponseValidationError`.
+
+Источник: `#/paths/~1health/get/responses/200/content/application~1json/schema`
+(inline schema). Проверено offline; live health оставлен P007.
+
 ### `app.info()`
 
 `GET /api/v1/app-info` → объект с обязательными `id: str`, `name: str`. Источник: `#/components/schemas/AppResponseDto`. Балансов и `feePercents` здесь нет.
@@ -129,6 +145,38 @@ Python-имена `snake_case` преобразуются в wire aliases явн
 Минимальный обязательный `Invoice`: `id`, `priceCurrency`, `createdAt`, `status`, `links`. В `links` обязателен `telegramBotLink`; `telegramMiniAppLink` и `webLink` необязательны. Остальные invoice поля из snapshot необязательны: `priceAmount`, `minPayment`, `payCurrencies`, `clientInvoiceId`, `description`, `expiresIn`, `expiresAt`, `callback`, `url`, `customer`. Не делать сумму обязательной для open-amount invoice.
 
 Источники: `#/components/schemas/InvoiceDto`, `#/components/schemas/InvoiceLinkDto`.
+
+### `invoices.payments(invoice_id=None, client_invoice_id=None, cursor=None, limit=None)`
+
+`GET /api/v1/invoice/payments` с обязательным JWT. Нужен хотя бы один непустой
+invoice identifier длиной до 100; SDK передаёт оба, если заданы оба, а сервер
+использует `invoiceId`. Cursor передаётся буквально, включая пустую строку;
+`limit` проверяется как целое 1–1000, bool не допускается, как у invoices.list.
+
+Ответ `InvoicePaymentPage` содержит `items: list[InvoicePayment]` и отдельную
+`InvoicePaymentPagination` с обязательным nullable `next`, без поля total.
+Каждый вызов делает один запрос. Конец страницы определяется только `next is None`,
+а не длиной items. Дополнительные поля page/pagination также сохраняются.
+
+У платежа обязательны status, pay/receive amounts и currencies, transactions;
+`id` необязателен (PAY-007), `finalized_at` — aware datetime или None (PAY-004).
+Завершение определяется `finalized_at is not None`; неизвестный status не означает
+paid или finalized. Денежные суммы разбираются через Money без float.
+
+Discriminator `type` применяется к каждому item transactions (PAY-006):
+`internal` → `InvoiceInternalTransaction`, `blockchain` →
+`InvoiceBlockchainTransaction`. Их nullable money/currency/finalized_at учитывают
+PAY-005; payer и blockchain tx details типизированы. Неизвестная строка type
+возвращает `UnknownInvoiceTransaction`, сохраняя поля без интерпретации. Отсутствующий
+или нестроковый type и некорректные поля известного типа вызывают
+`ResponseValidationError`, без fallback для повреждённого известного объекта.
+Неизвестные response statuses и поля сохраняются (PAY-011).
+
+Источники: `#/paths/~1api~1v1~1invoice~1payments/get`,
+`InvoicePaymentListResponseDto`, `InvoicePaymentListPaginationDto`,
+`InvoicePaymentDto`, `InvoiceInternalTransactionDto`,
+`InvoiceBlockchainTransactionDto` и их nested DTO. Проверено offline;
+nullable overrides пока не подтверждены реальными payment records.
 
 ## 5. Деньги, время, идентификаторы и эволюция schema
 
@@ -190,7 +238,7 @@ Current errors описаны problem objects с обязательными `typ
 | rates.get | 404 `/api/problems/asset_not_found`, `/api/problems/currency_not_found` |
 | invoices.list | 401 unauthorized; 429; 500 |
 | invoices.retrieve | 400 `/api/problems/missing_invoice_identifier`; 401; 404 `/api/problems/invoice_not_found`; 429; 500 |
-| будущий invoice payments list | дополнительно 400 `/api/problems/validation_error`, описание Invalid cursor |
+| invoices.payments | дополнительно 400 `/api/problems/validation_error`, описание Invalid cursor |
 
 Общие типы: 429 `/api/problems/rate_limit_exceeded`, 500 `/api/problems/internal_error`. Список документированных codes не исключает gateway 502/503, не-JSON ответ или новый problem type. В текущем срезе fallback API error сохраняет HTTP status, problem object (если JSON — объект), x-request-id и retry-after при наличии. Произвольное тело и остальные headers пока не сохраняются; отдельный raw response API отложен. Transport/timeout сохраняют исходное исключение в `__context__`, но подавляют его автоматическую печать, чтобы исходное сообщение HTTP-клиента не утекало в логи.
 

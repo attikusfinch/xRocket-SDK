@@ -3,10 +3,18 @@
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Invoice
+from xrocket.pay.models import CursorPage, Invoice, InvoicePaymentPage
 
 _INVOICE = TypeAdapter(Invoice)
 _PAGE = TypeAdapter(CursorPage[Invoice])
+_PAYMENTS_PAGE = TypeAdapter(InvoicePaymentPage)
+
+
+def _validate_limit(limit: int | None) -> None:
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000
+    ):
+        raise ValueError("limit must be an integer between 1 and 1000")
 
 
 def _list_params(
@@ -17,10 +25,7 @@ def _list_params(
     cursor: str | None,
     limit: int | None,
 ) -> Query:
-    if limit is not None and (
-        isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 1000
-    ):
-        raise ValueError("limit must be an integer between 1 and 1000")
+    _validate_limit(limit)
     params: Query = []
     for name, value in (
         ("asset", asset),
@@ -45,6 +50,21 @@ def _retrieve_params(invoice_id: str | None, client_invoice_id: str | None) -> Q
             if not value or len(value) > 100:
                 raise ValueError("Invoice identifiers must contain 1 to 100 characters")
             params.append((name, value))
+    return params
+
+
+def _payments_params(
+    invoice_id: str | None,
+    client_invoice_id: str | None,
+    cursor: str | None,
+    limit: int | None,
+) -> Query:
+    params = _retrieve_params(invoice_id, client_invoice_id)
+    _validate_limit(limit)
+    if cursor is not None:
+        params.append(("cursor", cursor))
+    if limit is not None:
+        params.append(("limit", limit))
     return params
 
 
@@ -80,6 +100,20 @@ class InvoicesResource:
             params=_retrieve_params(invoice_id, client_invoice_id),
         )
 
+    def payments(
+        self,
+        *,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> InvoicePaymentPage:
+        return self._transport.get(
+            "/api/v1/invoice/payments",
+            _PAYMENTS_PAGE,
+            params=_payments_params(invoice_id, client_invoice_id, cursor, limit),
+        )
+
 
 class AsyncInvoicesResource:
     def __init__(self, transport: AsyncTransport) -> None:
@@ -111,4 +145,18 @@ class AsyncInvoicesResource:
             "/api/v1/invoice",
             _INVOICE,
             params=_retrieve_params(invoice_id, client_invoice_id),
+        )
+
+    async def payments(
+        self,
+        *,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+        cursor: str | None = None,
+        limit: int | None = None,
+    ) -> InvoicePaymentPage:
+        return await self._transport.get(
+            "/api/v1/invoice/payments",
+            _PAYMENTS_PAGE,
+            params=_payments_params(invoice_id, client_invoice_id, cursor, limit),
         )

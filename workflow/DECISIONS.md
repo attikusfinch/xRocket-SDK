@@ -17,8 +17,9 @@
 | D009 | Одна задача на сессию; состояние в проекте | Явный запрос пользователя 2026-10-17 |
 | D010 | Все write contracts сначала проверяются offline | Roadmap не разрешает реальные платежи или публикацию |
 | D011 | Pay DTO разделены по существующим ресурсам; response config/Money и pagination остаются в Pay, прежние public imports сохранены | Реализовано в P001; `src/xrocket/pay/models/`, `spec/architecture.md`; [handoff](handoffs/P001-01.md) |
-
 | D012 | Git root — корень SDK, remote attikusfinch/xRocket-SDK, main | Прямой запрос пользователя; remote был пустым, доступ ADMIN проверен. Исходники/spec/workflow включаются, локальные данные исключаются |
+| D013 | Публичный health — `health.get()` в обоих клиентах; transport разрешает точный `/health` наряду с `/api/` | Реализовано offline в P002, inline OAS задаёт списки HealthComponent; [handoff](handoffs/P002-01.md); live проверка отложена до P007 |
+| D014 | `invoices.payments()` возвращает отдельную page без total; transaction discriminator применяется к каждому item, неизвестный type сохраняется явной raw-моделью, повреждённый known type отвергается | Реализовано offline в P003; PAY-004–007/PAY-011; [handoff](handoffs/P003-01.md); finality определяется finalized_at, не status |
 
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого

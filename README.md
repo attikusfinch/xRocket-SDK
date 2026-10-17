@@ -20,14 +20,23 @@ Exchange запланирован отдельным модулем того ж�
 
 | Метод SDK | Current Pay API |
 |---|---|
+| `pay.health.get()` | `GET /health` |
 | `pay.app.info()` | `GET /api/v1/app-info` |
 | `pay.app.balances()` | `GET /api/v1/balances` |
 | `pay.currencies.list(kind=...)` | `GET /api/v1/currencies` |
 | `pay.rates.get(base=..., assets=[...])` | `GET /api/v1/rates` |
 | `pay.invoices.list(...)` | `GET /api/v1/invoices` |
 | `pay.invoices.retrieve(invoice_id=..., client_invoice_id=...)` | `GET /api/v1/invoice` |
+| `pay.invoices.payments(invoice_id=..., client_invoice_id=..., cursor=..., limit=...)` | `GET /api/v1/invoice/payments` |
 
 Ответы типизированы, деньги читаются как `Decimal`. Списки возвращают одну страницу.
+`pay.health.get()` доступен без токена и возвращает `Health` с типизированными
+компонентами `HealthComponent` в `info`, `error`, `details`. Неизвестные статусы
+и поля сохраняются. Асинхронный вызов — `await pay.health.get()`.
+`invoices.payments()` возвращает одну `InvoicePaymentPage`; `pagination.next`
+равен `None` на последней странице. Вложенные internal/blockchain транзакции
+типизированы, неизвестный тип сохраняется как `UnknownInvoiceTransaction`.
+Состояние завершения платежа определяется `finalized_at`, а не неизвестным status.
 HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `retry_after`;
 последние два поля могут отсутствовать, серверный контракт их не гарантирует.
 Автоповторов нет. Запись, webhook verification и остальные Pay-ресурсы пока

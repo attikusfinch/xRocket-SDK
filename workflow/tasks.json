@@ -71,12 +71,12 @@
     {
       "id": "P002",
       "title": "Публичный health и корневой маршрут вне /api",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/P002.md",
-      "handoff": null,
+      "handoff": "handoffs/P002-01.md",
       "operations": [
         {
           "method": "GET",
@@ -87,12 +87,12 @@
     {
       "id": "P003",
       "title": "Чтение платежей invoice и вложенных транзакций",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/P003.md",
-      "handoff": null,
+      "handoff": "handoffs/P003-01.md",
       "operations": [
         {
           "method": "GET",

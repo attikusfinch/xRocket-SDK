@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 import pytest
+from pydantic import TypeAdapter
 
 from xrocket import (
     APIError,
@@ -21,6 +22,7 @@ from xrocket import (
     TransportError,
     XRocketError,
 )
+from xrocket._core.transport import AsyncTransport, SyncTransport
 from xrocket.pay import AsyncPayClient, PayClient
 
 TOKEN = "synthetic-secret-token-for-transport-tests"
@@ -384,3 +386,48 @@ async def test_public_request_never_inherits_another_product_token(backend: str)
         http.headers["Authorization"] = "Bearer unrelated-exchange-token"
         await _resolve(client.rates.get())
         assert http.headers["Authorization"] == "Bearer unrelated-exchange-token"
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "https://other.example/health",
+        "//other.example/health",
+        "health",
+        "/health?token=untrusted",
+        "/health#fragment",
+        "/health/",
+        "/healthcheck",
+        "/Health",
+        "/api/v1/app-info?token=untrusted",
+        "/api/v1/app-info#fragment",
+    ],
+)
+async def test_request_path_guard_rejects_unsafe_or_unlisted_paths(
+    backend: str, path: str
+) -> None:
+    calls: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json={})
+
+    http_class = httpx.AsyncClient if backend == "async" else httpx.Client
+    transport_class = AsyncTransport if backend == "async" else SyncTransport
+    http = http_class(transport=httpx.MockTransport(respond))
+    transport = transport_class(
+        api_token=TOKEN, base_url="https://pay.example", timeout=30, http_client=http
+    )
+    try:
+        with pytest.raises(ValueError, match="SDK request path"):
+            await _resolve(transport.get(path, TypeAdapter(dict[str, Any]), authenticated=False))
+        assert calls == []
+    finally:
+        if isinstance(transport, AsyncTransport):
+            await transport.aclose()
+        else:
+            transport.close()
+        if isinstance(http, httpx.AsyncClient):
+            await http.aclose()
+        else:
+            http.close()
