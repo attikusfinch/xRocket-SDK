@@ -52,6 +52,8 @@ from .models import (
     WithdrawalCallback,
     WithdrawalCallbackRequest,
     WithdrawalCreateRequest,
+    WithdrawalLink,
+    WithdrawalLinkRequest,
     WithdrawalQuotas,
 )
 
@@ -108,5 +110,7 @@ __all__ = [
     "WithdrawalCallback",
     "WithdrawalCallbackRequest",
     "WithdrawalCreateRequest",
+    "WithdrawalLink",
+    "WithdrawalLinkRequest",
     "WithdrawalQuotas",
 ]

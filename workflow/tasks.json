@@ -327,12 +327,12 @@
     {
       "id": "P015",
       "title": "Создание withdrawal link",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P008"
       ],
       "card": "tasks/P015.md",
-      "handoff": null,
+      "handoff": "handoffs/P015-01.md",
       "operations": [
         {
           "method": "POST",

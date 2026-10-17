@@ -45,6 +45,7 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.withdrawals.list(from_date=..., to_date=..., status=..., cursor=..., limit=...)` | `GET /api/v1/withdrawals` |
 | `pay.withdrawals.retrieve(withdrawal_id=..., client_withdrawal_id=...)` | `GET /api/v1/withdrawal` |
 | `pay.withdrawals.quotas(network=..., asset=...)` | `GET /api/v1/withdrawal-quotas` |
+| `pay.withdrawal_links.create(request=WithdrawalLinkRequest(...))` | `POST /api/v1/withdrawal-link` |
 
 Ответы типизированы, деньги читаются как `Decimal`. Списки возвращают одну страницу.
 `pay.health.get()` доступен без токена и возвращает `Health` с типизированными
@@ -186,18 +187,35 @@ limit правилами, как payouts. Фильтр `status` принимае
 `withdrawals.quotas(network="TON", asset="USDT")` требует оба аргумента и возвращает
 `WithdrawalQuotas`: минимум и комиссия — Decimal, precision — обычное конечное
 число int/float. SDK не округляет суммы при чтении.
+
+`withdrawal_links.create()` принимает отдельный `WithdrawalLinkRequest` с обязательными
+`network` (`TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`), `address` до 100 символов,
+`asset` и точным `amount` (Decimal/decimal string → JSON string). Network задаётся
+явно. Необязательны `comment` до 50 символов и строковый `platform`: задавайте
+platform только если его предоставил xRocket. Пропущенные поля опускаются,
+explicit None запрещён. Client ID и callback в этот запрос не входят.
+HTTP 200 возвращает `WithdrawalLink` с необязательными `telegram_bot_link`,
+`telegram_mini_app_link`, `web_link`. Все ссылки могут отсутствовать, в Python
+это None; для сохранения omission используйте `model_dump(exclude_unset=True)`.
+Присутствующие ссылки должны быть строками: explicit null отвергается по OAS,
+проверки URL и нормализации нет, неизвестные response поля сохраняются.
+Обе модели доступны из `xrocket.pay` и `xrocket.pay.models`; async использует
+те же аргументы с `await`. SDK возвращает ссылки без открытия; это отдельная
+операция Current, отличная от `withdrawals.create()` и Legacy GET.
+После timeout создание ссылки остаётся неизвестным, автоматического повтора нет.
+
 HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `retry_after`;
 последние два поля могут отсутствовать, серверный контракт их не гарантирует.
-Автоповторов нет. Остальные write-методы и webhook verification пока
-планируются. Пакет `xrocket.exchange` зарезервирован без клиента.
+Автоповторов нет. Все 25 Current Pay REST операций реализованы; webhook
+verification/events пока планируются. Пакет `xrocket.exchange` зарезервирован без клиента.
 
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
 missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
 P010 — создание invoice payment address, P011 — create/update/delete cheques,
 P012 — создание одиночного payout, P013 — mass payouts с отдельными успехами/ошибками,
-P014 — создание withdrawal с обязательным caller ID;
-остальные Pay write методы добавляются отдельными задачами с offline проверками.
+P014 — создание withdrawal с обязательным caller ID, P015 — создание withdrawal link.
+Write операции проверены offline, без реальных денежных действий.
 
 ## Установка для разработки
 

@@ -28,6 +28,7 @@ src/xrocket/
       rates.py           # Rate
       withdrawals.py     # Withdrawal / WithdrawalCallback / WithdrawalQuotas
       withdrawal_requests.py # отдельные WithdrawalCreateRequest / WithdrawalCallbackRequest
+      withdrawal_links.py # отдельные WithdrawalLinkRequest / WithdrawalLink response
       invoices.py        # Invoice и вложенные response DTO
       invoice_payments.py # платежи invoice, transaction types и отдельная page
       invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
@@ -35,7 +36,8 @@ src/xrocket/
       payout_requests.py # отдельные PayoutCreateRequest / PayoutCallbackRequest
                          # и MassPayoutCreateRequest / MassPayoutItemRequest
       mass_payouts.py    # MassPayoutResult / MassPayoutError / MassPayoutErrorReason
-    resources/           # app, cheques, currencies, health, rates, invoices, payouts, withdrawals
+    resources/           # app, cheques, currencies, health, rates, invoices, payouts,
+                         # withdrawals, withdrawal_links
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
 ```

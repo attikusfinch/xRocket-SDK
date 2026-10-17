@@ -39,6 +39,8 @@
 
 | D028 | Withdrawal create — отдельные WithdrawalCreateRequest/WithdrawalCallbackRequest и exact200 существующий Withdrawal. Caller ID required/max150 без генерации/замены/усечения; GET bounds1–100 отдельны (PAY-016/017). Required network enum без подстановки default; address100/comment50/callback URL500 строго по schema, без blockchain/monetary нормализации. Timeout оставляет неизвестный исход после одной HTTP попытки без retry/lookup/polling | Реализовано offline в P014 по Current OAS; minLength/monetary bounds не выдумываются, server acceptance/deduplication не подтверждены live. GET guard остаётся локальным; [контракт](../spec/pay-api.md), [handoff](handoffs/P014-01.md) |
 
+| D029 | Withdrawal links — отдельный withdrawal_links.create, WithdrawalLinkRequest и WithdrawalLink, singular POST/exact200. Network required без подстановки default; address100/comment50, platform только caller-supplied по указанию xRocket. Все response links независимо optional: missing → None, explicit null отвергается по non-nullable string schema, без URL/непустоты/at-least-one guards; unknown fields сохраняются | Реализовано offline в P015 по Current OAS; без смешения с прямым withdrawal/Legacy, открытия links и скрытых retries. Server acceptance/nullable override/expiry/idempotency не подтверждены live; [контракт](../spec/pay-api.md), [handoff](handoffs/P015-01.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

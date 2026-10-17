@@ -46,7 +46,9 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 
 ## 3. Полный inventory Current
 
-Имена Python ниже задают удобные группы SDK; wire paths остаются ровно такими, как в OAS. Первые реализуемые методы закреплены: `app.info()`, `app.balances()`, `currencies.list()`, `rates.get(base=..., assets=...)`, `invoices.list()`, `invoices.retrieve()`. Остальные имена ресурса — план следующего этапа, а не обещание уже доступного API.
+Имена Python ниже задают группы SDK; wire paths остаются ровно такими, как в OAS.
+После P015 реализованы все 25 Current REST операций в sync/async клиентах.
+Это offline покрытие контракта; живое подтверждение отдельно отмечено в журнале.
 
 Все тела запросов в таблице — JSON `application/json`. Все перечисленные success responses с телом — `application/json`. Для DELETE success schema отсутствует; клиент должен принимать пустое тело.
 
@@ -620,6 +622,58 @@ Precision — strict конечное int | float, не деньги: OAS number
 Источники: три точных GET, `WithdrawalResponseDto`, `WithdrawalListResponseDto`,
 `WithdrawalCallbackDto`, `WithdrawalQuotasResponseDto`. Проверено offline;
 missing-ID поведение, live quotas и реальные withdrawals этим не подтверждены.
+
+### `withdrawal_links.create(request=WithdrawalLinkRequest(...))`
+
+`POST /api/v1/withdrawal-link` с обязательным bearer JWT и JSON body. Только
+HTTP **200** возвращает `WithdrawalLink`. Singular path задаётся явно; Legacy
+`GET /withdrawal-link` не вызывается. Это отдельный ресурс от прямого
+`withdrawals.create()`, без client ID, callback, quota lookup или исполнения ссылок.
+Sync/async имеют одинаковые keyword-only request и тип результата.
+
+`WithdrawalLinkRequest` — отдельный strict request DTO с extra forbid:
+
+| Python | Wire | Контракт Current |
+| --- | --- | --- |
+| network | network | required enum TON, BSC, ETH, BTC, TRX, SOL; задаётся явно |
+| address | address | required str, maxLength 100 |
+| asset | asset | required str, без schema length/format bounds |
+| amount | amount | required RequestMoney, finite Decimal/decimal string → точная JSON string |
+| comment | comment | optional str, maxLength 50 |
+| platform | platform | optional str, только если предоставлен xRocket; без schema enum/length bounds |
+
+Network остаётся обязательным, несмотря на property default TON. Не добавлены
+minLength, positivity/precision limits, проверка blockchain address или
+нормализация строк. Omission опускает optional поля, explicit None отвергается:
+ни одно request property не объявлено nullable. Допуск пустых/длинных строк и
+неположительных сумм по локальной schema не подтверждает их принятие сервером.
+
+`WithdrawalLinkResponseDto` не содержит required: `telegramBotLink`,
+`telegramMiniAppLink`, `webLink` независимо optional. Даже `{}` валиден по schema.
+Python поля `telegram_bot_link`, `telegram_mini_app_link`, `web_link` равны None
+при omission; roundtrip missing — через `model_dump(exclude_unset=True)`.
+Присутствующее поле должно быть строкой: nullable отсутствует, поэтому explicit
+null отвергается. Это следование сохранённому OAS, без live nullable override.
+URL format, scheme, host, непустота и хотя бы одна ссылка не требуются schema
+и SDK не добавляются. Строки и unknown response fields сохраняются без изменения.
+
+Документированы 400 (`network_is_suspended`, `amount_less_than_minimum`,
+`withdrawal_incorrect_comment`, `withdrawal_incorrect_address`,
+`withdrawal_asset_not_allowed`), 401 (`unauthorized`), 404 (`asset_not_found`,
+`network_not_found`), 429 (`rate_limit_exceeded`), 500 (`internal_error`). Problem
+types имеют префикс `/api/problems/`, проходят через общую HTTP classification
+с исходным problem и optional request_id/retry_after. Описание 401 «Unknown API
+Key» устарело относительно operation bearer security; Legacy auth не используется.
+
+Создание выполняется одной HTTP попыткой без retry, lookup или открытия ссылок.
+После timeout результат создания неизвестен; idempotency/replay, срок действия,
+доступность/форма ссылок, server acceptance и реальное назначение platform
+не подтверждены offline. Получение link не является подтверждением завершённого
+вывода средств. Автоматический переход по ссылке не выполняется.
+
+Источники: `#/paths/~1api~1v1~1withdrawal-link/post`,
+`WithdrawalLinkRequestDto`, `WithdrawalLinkResponseDto`. Сохранённый OAS не
+менялся. Проверки — только MockTransport; live POST и денежные действия не выполнялись.
 
 ## 5. Деньги, время, идентификаторы и эволюция schema
 

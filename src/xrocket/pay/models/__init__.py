@@ -46,6 +46,7 @@ from .payout_requests import (
 )
 from .payouts import Payout, PayoutCallback
 from .rates import Rate
+from .withdrawal_links import WithdrawalLink, WithdrawalLinkRequest
 from .withdrawal_requests import WithdrawalCallbackRequest, WithdrawalCreateRequest
 from .withdrawals import Withdrawal, WithdrawalCallback, WithdrawalQuotas
 
@@ -101,5 +102,7 @@ __all__ = [
     "WithdrawalCallback",
     "WithdrawalCallbackRequest",
     "WithdrawalCreateRequest",
+    "WithdrawalLink",
+    "WithdrawalLinkRequest",
     "WithdrawalQuotas",
 ]

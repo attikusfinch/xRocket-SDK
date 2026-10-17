@@ -37,8 +37,12 @@ Read-only smoke по testnet с токеном из переменной окр�
 4. Контракт идемпотентности, поведение duplicate client ID и timeout после commit
    проверяются на testnet до автоматических повторов записей.
 
-Денежные end-to-end tests запускаются отдельно на testnet с явными входными данными.
-Текущий проект таких тестов и методов записи пока не содержит.
+Все 25 Current REST операций реализованы после P015; write-методы покрыты
+offline MockTransport. `tests/test_withdrawal_links.py` отдельно проверяет singular
+POST/exact200, точные деньги, DTO bounds, optional links/unknown fields и ошибки
+в sync/async. Наличие ссылки не требует перехода по ней.
+Денежные end-to-end tests требуют отдельного явного задания и входных данных;
+текущий проект таких тестов не содержит.
 
 ## Этап 3 — Exchange
 
