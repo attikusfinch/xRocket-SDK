@@ -1,0 +1,376 @@
+{
+  "version": 1,
+  "tasks": [
+    {
+      "id": "BASE",
+      "title": "Исходный срез: шесть GET-операций Current Pay",
+      "status": "done",
+      "depends_on": [],
+      "card": "tasks/BASE.md",
+      "handoff": "handoffs/BASE-01.md",
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/api/v1/app-info"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/balances"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/currencies"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/rates"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/invoices"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/invoice"
+        }
+      ]
+    },
+    {
+      "id": "FLOW",
+      "title": "Система старта и передачи контекста между сессиями",
+      "status": "done",
+      "depends_on": [
+        "BASE"
+      ],
+      "card": "tasks/FLOW.md",
+      "handoff": "handoffs/FLOW-01.md",
+      "operations": []
+    },
+    {
+      "id": "P001",
+      "title": "Разделить Pay-модели по ресурсам с сохранением импортов",
+      "status": "done",
+      "depends_on": [
+        "FLOW"
+      ],
+      "card": "tasks/P001.md",
+      "handoff": "handoffs/P001-01.md",
+      "operations": []
+    },
+    {
+      "id": "GIT001",
+      "title": "Подключить GitHub и исключить локальные файлы",
+      "status": "in_progress",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/GIT001.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "P002",
+      "title": "Публичный health и корневой маршрут вне /api",
+      "status": "todo",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/P002.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/health"
+        }
+      ]
+    },
+    {
+      "id": "P003",
+      "title": "Чтение платежей invoice и вложенных транзакций",
+      "status": "todo",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/P003.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/api/v1/invoice/payments"
+        }
+      ]
+    },
+    {
+      "id": "P004",
+      "title": "Чтение cheques: список и один чек",
+      "status": "todo",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/P004.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/api/v1/cheques"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/cheque"
+        }
+      ]
+    },
+    {
+      "id": "P005",
+      "title": "Чтение payouts: список и одна выплата",
+      "status": "todo",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/P005.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/api/v1/payouts"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/payout"
+        }
+      ]
+    },
+    {
+      "id": "P006",
+      "title": "Чтение withdrawals и квот",
+      "status": "todo",
+      "depends_on": [
+        "P001"
+      ],
+      "card": "tasks/P006.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "GET",
+          "path": "/api/v1/withdrawals"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/withdrawal"
+        },
+        {
+          "method": "GET",
+          "path": "/api/v1/withdrawal-quotas"
+        }
+      ]
+    },
+    {
+      "id": "P007",
+      "title": "Opt-in read-only testnet harness и журнал подтверждений",
+      "status": "todo",
+      "depends_on": [
+        "P002",
+        "P003",
+        "P004",
+        "P005",
+        "P006"
+      ],
+      "card": "tasks/P007.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "P008",
+      "title": "Общий pipeline HTTP-записи и сериализация request DTO",
+      "status": "todo",
+      "depends_on": [
+        "P007"
+      ],
+      "card": "tasks/P008.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "P009",
+      "title": "Invoice create и delete",
+      "status": "todo",
+      "depends_on": [
+        "P008"
+      ],
+      "card": "tasks/P009.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/invoices"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/invoice"
+        }
+      ]
+    },
+    {
+      "id": "P010",
+      "title": "Создание payment address для invoice",
+      "status": "todo",
+      "depends_on": [
+        "P009"
+      ],
+      "card": "tasks/P010.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/invoices/payments/address"
+        }
+      ]
+    },
+    {
+      "id": "P011",
+      "title": "Мутации cheques: create, update и delete",
+      "status": "todo",
+      "depends_on": [
+        "P008",
+        "P004"
+      ],
+      "card": "tasks/P011.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/cheques"
+        },
+        {
+          "method": "PUT",
+          "path": "/api/v1/cheques"
+        },
+        {
+          "method": "DELETE",
+          "path": "/api/v1/cheques"
+        }
+      ]
+    },
+    {
+      "id": "P012",
+      "title": "Создание одиночного payout",
+      "status": "todo",
+      "depends_on": [
+        "P008",
+        "P005"
+      ],
+      "card": "tasks/P012.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/payouts"
+        }
+      ]
+    },
+    {
+      "id": "P013",
+      "title": "Mass payouts и явный частичный результат",
+      "status": "todo",
+      "depends_on": [
+        "P012"
+      ],
+      "card": "tasks/P013.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/mass-payouts"
+        }
+      ]
+    },
+    {
+      "id": "P014",
+      "title": "Создание withdrawal с обязательным client ID",
+      "status": "todo",
+      "depends_on": [
+        "P008",
+        "P006"
+      ],
+      "card": "tasks/P014.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/withdrawals"
+        }
+      ]
+    },
+    {
+      "id": "P015",
+      "title": "Создание withdrawal link",
+      "status": "todo",
+      "depends_on": [
+        "P008"
+      ],
+      "card": "tasks/P015.md",
+      "handoff": null,
+      "operations": [
+        {
+          "method": "POST",
+          "path": "/api/v1/withdrawal-link"
+        }
+      ]
+    },
+    {
+      "id": "P016",
+      "title": "Проверка подписи Current webhook по исходным байтам",
+      "status": "todo",
+      "depends_on": [
+        "P003"
+      ],
+      "card": "tasks/P016.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "P017",
+      "title": "Типизированные webhook events с fallback для неизвестных",
+      "status": "todo",
+      "depends_on": [
+        "P016",
+        "P004",
+        "P005",
+        "P006"
+      ],
+      "card": "tasks/P017.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "P018",
+      "title": "Проверить полноту Pay и подготовить переход к Exchange",
+      "status": "todo",
+      "depends_on": [
+        "P007",
+        "P009",
+        "P010",
+        "P011",
+        "P012",
+        "P013",
+        "P014",
+        "P015",
+        "P017"
+      ],
+      "card": "tasks/P018.md",
+      "handoff": null,
+      "operations": []
+    },
+    {
+      "id": "X001",
+      "title": "Исследовать контракт Exchange и спланировать первый срез",
+      "status": "todo",
+      "depends_on": [
+        "P018"
+      ],
+      "card": "tasks/X001.md",
+      "handoff": null,
+      "operations": []
+    }
+  ]
+}

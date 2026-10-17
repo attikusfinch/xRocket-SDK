@@ -1,0 +1,20 @@
+[
+  {
+    "file": "pay-current.json",
+    "source": "https://pay.api.xrocket.exchange/api/docs-json",
+    "retrieved_date": "2026-10-17",
+    "title": "xRocket Pay API",
+    "api_version": "1.0.0",
+    "sha256": "6061070427088b6775ad2065f9be01a0da1c64780de34cb63e6196bde5ad3241",
+    "bytes": 174210
+  },
+  {
+    "file": "pay-legacy.json",
+    "source": "https://pay.xrocket.exchange/api-json",
+    "retrieved_date": "2026-10-17",
+    "title": "xRocket Pay Legacy API",
+    "api_version": "1.3.1",
+    "sha256": "f51bd40b5aa437c576a9b610e9d597b57bcdd114a78dc18785c1824ce5e5fa26",
+    "bytes": 56481
+  }
+]

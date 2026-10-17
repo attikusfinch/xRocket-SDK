@@ -1,0 +1,10 @@
+# Keep source/docs portable across Windows and Unix.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.whl binary
+*.gz binary
