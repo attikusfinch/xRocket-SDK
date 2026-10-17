@@ -141,17 +141,51 @@ async def test_health_keeps_typed_lists_future_statuses_and_fields(backend: str)
 
 
 @pytest.mark.parametrize(
+    "missing_fields",
+    [
+        ("info", "error", "details"),
+        ("info",),
+        ("error",),
+        ("details",),
+    ],
+)
+async def test_health_keeps_missing_components_unknown(
+    backend: str, missing_fields: tuple[str, ...]
+) -> None:
+    payload = {key: value for key, value in HEALTH.items() if key not in missing_fields}
+    async with _sdk(backend, lambda _: httpx.Response(200, json=payload)) as (client, _):
+        health = await _resolve(client.health.get())
+
+    assert isinstance(health, Health)
+    assert health.status == "ok"
+    assert health.model_fields_set == set(payload)
+    assert health.model_dump(exclude_unset=True) == payload
+    assert Health.model_validate(health.model_dump(exclude_unset=True)) == health
+    for field in ("info", "error", "details"):
+        if field in missing_fields:
+            assert getattr(health, field) is None
+        else:
+            assert getattr(health, field) == []
+
+
+@pytest.mark.parametrize(
     "payload",
     [
         {},
-        {"status": "ok", "info": [], "error": []},
+        {**HEALTH, "status": None},
         {**HEALTH, "status": 1},
+        {**HEALTH, "info": None},
+        {**HEALTH, "error": None},
+        {**HEALTH, "details": None},
         {**HEALTH, "info": {}},
         {**HEALTH, "error": [{"name": "database"}]},
         {**HEALTH, "details": [{"status": "up"}]},
+        {**HEALTH, "info": [{"name": "cache", "status": 1}]},
     ],
 )
-async def test_health_requires_the_inline_schema_fields(backend: str, payload: Any) -> None:
+async def test_health_requires_status_and_valid_provided_components(
+    backend: str, payload: Any
+) -> None:
     async with _sdk(backend, lambda _: httpx.Response(200, json=payload)) as (client, _):
         with pytest.raises(ResponseValidationError):
             await _resolve(client.health.get())

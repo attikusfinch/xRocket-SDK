@@ -1,9 +1,9 @@
-"""Explicit single-page invoice reads."""
+"""Explicit invoice reads and request-backed creation and deletion."""
 
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Invoice, InvoicePaymentPage
+from xrocket.pay.models import CursorPage, Invoice, InvoiceCreateRequest, InvoicePaymentPage
 
 _INVOICE = TypeAdapter(Invoice)
 _PAGE = TypeAdapter(CursorPage[Invoice])
@@ -47,7 +47,7 @@ def _retrieve_params(invoice_id: str | None, client_invoice_id: str | None) -> Q
     params: Query = []
     for name, value in (("invoiceId", invoice_id), ("clientInvoiceId", client_invoice_id)):
         if value is not None:
-            if not value or len(value) > 100:
+            if not isinstance(value, str) or not value or len(value) > 100:
                 raise ValueError("Invoice identifiers must contain 1 to 100 characters")
             params.append((name, value))
     return params
@@ -71,6 +71,29 @@ def _payments_params(
 class InvoicesResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
+
+    def create(self, *, request: InvoiceCreateRequest) -> Invoice:
+        """Create an invoice from an explicit request DTO; no automatic retries."""
+        if not isinstance(request, InvoiceCreateRequest):
+            raise TypeError("request must be an InvoiceCreateRequest")
+        return self._transport.request(
+            "POST", "/api/v1/invoices", _INVOICE, success_statuses=(200,), body=request
+        )
+
+    def delete(
+        self,
+        *,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+    ) -> None:
+        """Delete by either identifier; both are forwarded when supplied."""
+        return self._transport.request(
+            "DELETE",
+            "/api/v1/invoice",
+            None,
+            success_statuses=(200,),
+            params=_retrieve_params(invoice_id, client_invoice_id),
+        )
 
     def list(
         self,
@@ -118,6 +141,29 @@ class InvoicesResource:
 class AsyncInvoicesResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    async def create(self, *, request: InvoiceCreateRequest) -> Invoice:
+        """Create an invoice from an explicit request DTO; no automatic retries."""
+        if not isinstance(request, InvoiceCreateRequest):
+            raise TypeError("request must be an InvoiceCreateRequest")
+        return await self._transport.request(
+            "POST", "/api/v1/invoices", _INVOICE, success_statuses=(200,), body=request
+        )
+
+    async def delete(
+        self,
+        *,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+    ) -> None:
+        """Delete by either identifier; both are forwarded when supplied."""
+        return await self._transport.request(
+            "DELETE",
+            "/api/v1/invoice",
+            None,
+            success_statuses=(200,),
+            params=_retrieve_params(invoice_id, client_invoice_id),
+        )
 
     async def list(
         self,

@@ -13,20 +13,24 @@ Exchange — с торговым аккаунтом, market data и WebSocket. �
 
 ```text
 src/xrocket/
-  _core/                 # HTTP и базовые ошибки, без знания Pay/Exchange
+  _core/                 # HTTP, request serialization и ошибки, без знания Pay/Exchange
   pay/
     client.py            # PayClient / AsyncPayClient, конфигурация ресурсов
     models/
       __init__.py        # стабильные re-exports моделей
       _base.py           # response config и Money, только для Pay
       pagination.py      # CursorPagination / CursorPage, только для Pay
+      payouts.py         # Payout / PayoutCallback, amount через Money
       app.py             # AppInfo / Balance / AppBalances
+      cheques.py         # Cheque / ChequeLinks / ChequeCallback / ChequeURL
       currencies.py      # Currency / CurrencyNetwork
       health.py          # Health / HealthComponent
       rates.py           # Rate
+      withdrawals.py     # Withdrawal / WithdrawalCallback / WithdrawalQuotas
       invoices.py        # Invoice и вложенные response DTO
       invoice_payments.py # платежи invoice, transaction types и отдельная page
-    resources/           # app, currencies, health, rates, invoices
+      invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
+    resources/           # app, cheques, currencies, health, rates, invoices, payouts, withdrawals
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
 ```
@@ -69,9 +73,42 @@ async with AsyncPayClient(api_token=token, environment="testnet") as pay:
 таблица контрактных тестов проверяет обе версии одним набором сценариев.
 
 Используем keyword-only параметры, snake_case в Python и camelCase в wire format.
-Для будущих больших write-payload: отдельные request models/TypedDict. Аргументы
+Для больших write-payload используются отдельные request models. Аргументы
 бизнес-запроса не смешиваются с transport options. Для первого среза достаточно
 timeout в конструкторе; API per-request options появится вместе с реальной нуждой.
+
+Фундамент записи P008 находится во внутреннем `_core`; P009 использует его
+для invoice create/delete. `serialization.RequestModel` отделён от response models:
+extra запрещены, instances повторно валидируются перед отправкой. Alias rules
+задаёт продуктовый DTO, общий core не навязывает camelCase другим продуктам.
+`RequestMoney` принимает finite Decimal/decimal string и сериализуется JSON string.
+`serialize_request()` возвращает UTF-8 bytes с aliases и `exclude_unset=True`:
+missing опускается, явный None остаётся null, включая вложенные request DTO.
+Response BaseModel, даже внутри payload, не превращается в request автоматически.
+Payload graph ограничен JSON primitives, finite Decimal, dict со строковыми ключами,
+list/tuple и RequestModel. Неявных dataclass/bytes/date converters нет; продуктовый
+DTO готовит требуемое wire значение явно. Вложенные RequestModel проверяются
+также внутри Any, без изменения исходных объектов и их missing/explicit состояния.
+Обязательные validated fields не могут исчезнуть при exclude_unset даже после
+model_construct с вручную заданным fields_set; они помечаются на нормализованной
+копии, optional omission и исходный объект сохраняются.
+
+InvoiceCreateRequest и вложенные Callback/URL/CustomerRequest — отдельные Pay
+request models со strict типами и camelCase aliases. Только price_currency
+обязателен; оба amount одновременно запрещены, ни один не требуется безусловно
+из-за PAY-008. None defaults обозначают omission, explicit None отвергается
+по non-nullable OAS. Ресурс принимает `create(request=...)`, возвращает Invoice
+на 200; `delete(invoice_id=..., client_invoice_id=...)` ждёт пустой 200 и возвращает None.
+
+`SyncTransport.request()` / `AsyncTransport.request()` принимают GET/POST/PUT/DELETE,
+явный tuple success_statuses и response adapter: TypeAdapter означает JSON decode,
+None означает строго пустой body. Неожиданный 2xx вызывает ResponseValidationError,
+non-2xx использует прежние API errors. `get()` сохраняет прежний API и все 2xx.
+Write JSON отправляется как готовые bytes с application/json; framing отражает
+реальную длину, чужие Transfer-Encoding/Content-Encoding defaults не наследуются.
+Исходный внедрённый HTTP client не меняется. `/health` остаётся GET-only,
+GET body не поддержан. Остальные endpoint-specific DTO и retry/idempotency policy —
+следующие карточки, автоматических mutation retries или ID генерации нет.
 
 ## HTTP и владение ресурсами
 

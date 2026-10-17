@@ -63,6 +63,48 @@ $env:XROCKET_RUN_LIVE = '1'
 .venv\Scripts\python.exe -m pytest -m live
 ```
 
-Он обращается к публичным currencies/rates testnet, не требует токена и не пишет
-данные. Недоступность testnet — failure интеграции, а не причина маскировать её
-как успешный unit test.
+Harness содержит 40 cases для sync/async: 6 public (currencies/rates/health)
+и 34 private, покрывающие все 15 GET. Hardcoded environment — testnet;
+mainnet, POST/PUT/DELETE и получение токена в него не входят.
+
+Gate проверяется во время fixture setup: только точное `XROCKET_RUN_LIVE=1`
+разрешает запросы. Обычный pytest остаётся offline через `-m 'not live'`, даже
+если флаг уже установлен. Явный `-m live` без флага даёт 40 skips до создания клиентов.
+
+Private клиент использует только `XROCKET_PAY_TESTNET_TOKEN`, без fallback на
+другие токены или автоматического чтения .env. Отсутствие JWT даёт 34 понятных skips,
+публичные проверки продолжаются без токена. С одним JWT отдельно доступны
+app.info/balances и list invoices/cheques/payouts/withdrawals (12 cases).
+
+Каждый retrieve/payment проверяется отдельно по server/client ID из fixtures:
+
+| Ресурс | Server ID variable | Client ID variable |
+|---|---|---|
+| Invoice retrieve и payments | `XROCKET_PAY_TESTNET_INVOICE_ID` | `XROCKET_PAY_TESTNET_CLIENT_INVOICE_ID` |
+| Cheque | `XROCKET_PAY_TESTNET_CHEQUE_ID` | `XROCKET_PAY_TESTNET_CLIENT_CHEQUE_ID` |
+| Payout | `XROCKET_PAY_TESTNET_PAYOUT_ID` | `XROCKET_PAY_TESTNET_CLIENT_PAYOUT_ID` |
+| Withdrawal | `XROCKET_PAY_TESTNET_WITHDRAWAL_ID` | `XROCKET_PAY_TESTNET_CLIENT_WITHDRAWAL_ID` |
+
+Отсутствующий ID пропускает только соответствующий case; независимые app/list
+не зависят от fixtures. ID не угадываются и не извлекаются из list response.
+Quotas (2 cases) требуют оба `XROCKET_PAY_TESTNET_QUOTAS_NETWORK` и
+`XROCKET_PAY_TESTNET_QUOTAS_ASSET`; неполная пара пропускает только quotas.
+Непустой, но некорректный fixture приводит к failure, а не skip.
+
+Приватные setup/GET/cleanup failures дают постоянное сообщение без traceback
+с records, ID, JWT или problem body. Request logs на время live tests отключены
+и затем восстановлены; ответы в fixtures не записываются. Недоступность сети,
+HTTP error или некорректный response при opt-in — failure, не skip/xfail/pass.
+
+На Windows при исчерпании локальных socketpair (WinError 10055) отдельный запуск:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -m live -o asyncio_default_test_loop_scope=session
+```
+
+`tests/test_live_harness.py` проверяет gates, independent skips, testnet GET-only,
+failure semantics и отсутствие чувствительных synthetic значений в выводе
+через отдельные pytest processes с подставленным HTTPX send. Это offline
+проверка harness, не live подтверждение API. Реальные результаты и открытые
+вопросы сохраняются в [журнале live](live-verification.md); первый срез
+[verification.md](verification.md) остаётся историческим.

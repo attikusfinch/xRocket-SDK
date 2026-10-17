@@ -103,12 +103,12 @@
     {
       "id": "P004",
       "title": "Чтение cheques: список и один чек",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/P004.md",
-      "handoff": null,
+      "handoff": "handoffs/P004-01.md",
       "operations": [
         {
           "method": "GET",
@@ -123,12 +123,12 @@
     {
       "id": "P005",
       "title": "Чтение payouts: список и одна выплата",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/P005.md",
-      "handoff": null,
+      "handoff": "handoffs/P005-01.md",
       "operations": [
         {
           "method": "GET",
@@ -143,12 +143,12 @@
     {
       "id": "P006",
       "title": "Чтение withdrawals и квот",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/P006.md",
-      "handoff": null,
+      "handoff": "handoffs/P006-01.md",
       "operations": [
         {
           "method": "GET",
@@ -167,7 +167,7 @@
     {
       "id": "P007",
       "title": "Opt-in read-only testnet harness и журнал подтверждений",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P002",
         "P003",
@@ -176,29 +176,41 @@
         "P006"
       ],
       "card": "tasks/P007.md",
-      "handoff": null,
+      "handoff": "handoffs/P007-01.md",
+      "operations": []
+    },
+    {
+      "id": "P019",
+      "title": "Привести health к подтверждённому testnet response",
+      "status": "done",
+      "depends_on": [
+        "P002",
+        "P007"
+      ],
+      "card": "tasks/P019.md",
+      "handoff": "handoffs/P019-01.md",
       "operations": []
     },
     {
       "id": "P008",
       "title": "Общий pipeline HTTP-записи и сериализация request DTO",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P007"
       ],
       "card": "tasks/P008.md",
-      "handoff": null,
+      "handoff": "handoffs/P008-01.md",
       "operations": []
     },
     {
       "id": "P009",
       "title": "Invoice create и delete",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P008"
       ],
       "card": "tasks/P009.md",
-      "handoff": null,
+      "handoff": "handoffs/P009-01.md",
       "operations": [
         {
           "method": "POST",
@@ -348,6 +360,7 @@
       "status": "todo",
       "depends_on": [
         "P007",
+        "P019",
         "P009",
         "P010",
         "P011",

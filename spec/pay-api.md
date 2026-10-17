@@ -80,9 +80,11 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 
 Важные особенности маршрутов: singular `/invoice`, `/cheque`, `/payout`, `/withdrawal` для retrieve; update/delete cheque используют plural `/cheques`. Нельзя выводить путь из правила единственного/множественного числа. Для большинства POST success равен 200, для payment address — 201; decoder должен учитывать контракт конкретной операции.
 
-## 4. Первый read-only срез
+## 4. Поддерживаемые методы SDK
 
-Цель — доказать пригодность общего transport, auth, сериализации параметров, ошибок и моделей, прежде чем реализовывать создание счетов и движение средств.
+Read-only методы проверяют общий transport, auth, сериализацию параметров, ошибки
+и модели. Invoice create/delete добавлены P009 поверх request foundation P008;
+их реализация и проверка offline не означают запуск реальных мутаций.
 
 ### `health.get()`
 
@@ -91,14 +93,25 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 произвольных корневых маршрутов. Настройки HTTP pooling/ownership и auth isolation
 совпадают с остальными публичными методами.
 
-Ответ `Health` содержит обязательные `status: str`, `info`, `error`, `details`.
-Три последних поля — списки `HealthComponent` с обязательными `name: str`,
+Ответ `Health` содержит обязательный `status: str`. `info`, `error`, `details`
+могут отсутствовать (PAY-018): тогда Python-поле равно None, состояние компонентов
+неизвестно. Если поле присутствует — это список `HealthComponent` с обязательными `name: str`,
 `status: str` и необязательным `message`. Статусы остаются строками, неизвестные
 поля сохраняются на обоих уровнях. Не-2xx проходит общую классификацию HTTP ошибок;
 некорректный success response вызывает `ResponseValidationError`.
 
 Источник: `#/paths/~1health/get/responses/200/content/application~1json/schema`
-(inline schema). Проверено offline; live health оставлен P007.
+(inline schema), с явным omission override PAY-018.
+
+P007 live testnet 2026-10-17 обнаружила PAY-018: HTTP 200 содержит только
+`{"status":"ok"}`. P019 сохраняет missing collections как None вместо
+придуманных пустых массивов. `[]` означает явно сообщённое отсутствие элементов;
+отсутствующая error collection сама по себе не подтверждает отсутствие ошибок
+компонентов. Явный null отвергается: OAS не nullable, live подтвердил omission.
+Полный OAS response по-прежнему типизирован, неизвестные поля/statuses сохраняются.
+Для lossless roundtrip missing полей нужен `model_dump(exclude_unset=True)`:
+обычный dump включает default None, которые не являются допустимыми wire arrays.
+Python Optional/генерируемая JSON Schema не заменяют этот runtime контракт.
 
 ### `app.info()`
 
@@ -121,6 +134,59 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 `GET /api/v1/rates`; у `base` в OAS указан default `USD`. `assets` — массив строк. Ответ — массив объектов с обязательными `currency: str`, `rate: str`; в SDK rate — `Decimal`. В ответе base не дублируется, поэтому он относится к контексту запроса.
 
 Источник: `#/paths/~1api~1v1~1rates/get`, `#/components/schemas/RateResponseDto`. Optional auth требует отдельного подтверждения.
+
+### `invoices.create(request=InvoiceCreateRequest(...))`
+
+`POST /api/v1/invoices`, обязательный JWT, JSON body из отдельного RequestModel.
+Только HTTP 200 декодируется в прежний Invoice; 201 не переносится с payment address.
+Resource принимает только InvoiceCreateRequest, raw dict/response/другой DTO не отправляет.
+Четыре request класса экспортируются из xrocket.pay и xrocket.pay.models;
+response InvoiceCallback/InvoiceURL/InvoiceCustomer не используются как вход.
+
+| Python поле | Wire alias | Контракт / локальная validation |
+|---|---|---|
+| price_currency | priceCurrency | required str, без выдуманного currency enum/minLength |
+| price_amount / min_payment | priceAmount / minPayment | optional RequestMoney (Decimal/string), только одна сумма одновременно; numeric bounds не заданы |
+| num_payments | numPayments | strict int 1–1000000; integer-only — SDK policy при OAS number (PAY-012) |
+| expires_in | expiresIn | strict int миллисекунд, 0 сохраняется; диапазон не задан, OAS default 3600000 не подставляется |
+| payout_currency / pay_currencies | payoutCurrency / payCurrencies | optional str / list[str], пустые значения не теряются |
+| client_invoice_id | clientInvoiceId | optional str, create maxLength отсутствует; GET/DELETE100 не переносится |
+| description | description | optional str maxLength1000 |
+| callback / url / customer | callback / url / customer | отдельные nested request DTO, все поля optional; {} допустим |
+| data | data | optional object с произвольными JSON keys/values |
+| platform_id | platformId | optional str без UUID format |
+
+InvoiceCallbackRequest: callback_url (max500) и object payload. InvoiceURLRequest:
+success_url/cancel_url (max500). InvoiceCustomerRequest: id/email/telegram_id/
+telegram_username — strings без выдуманных format/length constraints.
+Request aliases camelCase, неизвестные поля запрещены; типы strict.
+Все optional поля пропускаются по умолчанию, explicit None запрещён (OAS не nullable).
+Явные {}, [], пустые строки и 0 не заменяются missing; None внутри custom JSON
+payload разрешён как JSON null. Core serializer сохраняет required wire fields
+даже у model_construct с вручную пустым fields_set, не меняя исходный DTO.
+
+PAY-008 остаётся открытым: schema required содержит только priceCurrency,
+minPayment описан для open amount, error schema перечисляет missing_invoice_amount.
+SDK допускает отсутствие обеих сумм по schema и запрещает одновременное наличие
+по документированному amount_conflict, включая нулевые значения. Server acceptance
+варианта без сумм и фактические monetary bounds не подтверждены; ошибки сервера
+проходят общий APIError без retry. Также не навязываются положительный expiresIn,
+URL/email/UUID/username formats или фиксированная денежная precision.
+Prose limit4KB для data/callback.payload сохраняется как серверное ограничение:
+метрика size/JSON encoding/byte-vs-char не задана, локальный числовой предел не угадан.
+
+### `invoices.delete(invoice_id=None, client_invoice_id=None)`
+
+`DELETE /api/v1/invoice`, обязательный JWT, без JSON request body. Нужен хотя бы
+один непустой str ID 1–100; оба передаются буквально при наличии, по описанию API
+сервер использует invoiceId. Общий identifier helper усилен type check без изменения
+корректных GET inputs. Response policy — строго пустой HTTP 200 → None (PAY-014).
+JSON/whitespace body или иной 2xx отвергается как ResponseValidationError.
+400/401/404/429/500 проходят общий HTTP error decoder, попытка только одна.
+
+Источники обоих write methods: точные POST/DELETE, InvoiceCreateRequestDto,
+InvoiceCallbackRequestDto, InvoiceUrlRequestDto, InvoiceCustomerRequestDto.
+Все подтверждения P009 offline; live create/delete не запускались.
 
 ### `invoices.list(...)`
 
@@ -178,11 +244,142 @@ PAY-005; payer и blockchain tx details типизированы. Неизвес
 `InvoiceBlockchainTransactionDto` и их nested DTO. Проверено offline;
 nullable overrides пока не подтверждены реальными payment records.
 
+### `cheques.list(...)`
+
+`GET /api/v1/cheques` с обязательным JWT возвращает одну `CursorPage[Cheque]`.
+`from_date` / `to_date` — optional timezone-aware `datetime`, сериализуемые
+`isoformat()` в `fromDate` / `toDate` с сохранением offset и долей секунды.
+Naive datetime и строки не принимаются; это явная политика входного Python API.
+OAS задаёт ISO 8601 date-time, но не требует обеих дат и не ограничивает их порядок.
+
+`target_type` / `target` передаются вместе как `targetType` / `target`.
+Request target type: `user_id`, `telegram_user_id`, `telegram_username`;
+target — строка до 100 символов (minLength в OAS отсутствует).
+Request state: `active`, `completed`, `draft`, `error`.
+Cursor передаётся буквально, включая пустую строку. `limit` — целое 1–1000,
+bool отвергается; integer-only — политика SDK при OAS type number с теми же
+minimum/maximum. `None` опускается; defaults серверу не навязываются.
+Конец страницы определяется `pagination.next is None`, даже при пустых items.
+По описанию API list исключает отменённые чеки; SDK дополнительных фильтров
+результата не вводит.
+
+### `cheques.retrieve(cheque_id=None, client_cheque_id=None)`
+
+`GET /api/v1/cheque`, точный singular path. Нужен хотя бы один непустой строковый
+identifier длиной до 100; ведущие нули и произвольные символы сохраняются.
+Переданные оба ID уходят как `chequeId` / `clientChequeId`; OAS не задаёт их
+приоритет. Ограничение 50 из create здесь не применяется. Требование хотя бы
+одного следует из документированного 400 `missing_cheque_identifier`.
+
+`ChequeResponseDto` требует только `chequeId`, `asset`, `links`, `deleted`.
+`Cheque.state` остаётся optional str, неизвестные состояния сохраняются.
+`amount` в schema отсутствует: SDK его не требует и не придумывает денежный
+контракт; дополнительные поля, включая сумму при её появлении, сохраняются raw.
+Все поля `ChequeLinks`, `ChequeCallback`, `ChequeURL` необязательны; `links: {}`
+валиден, callback payload типизирован как object. Optional response поля допускают
+None по существующей политике Pay-моделей; upstream nullability этим не подтверждена.
+Retrieve может вернуть отменённый чек с `deleted=true`.
+
+Источники обоих методов: `#/paths/~1api~1v1~1cheques/get`,
+`#/paths/~1api~1v1~1cheque/get`, `ChequeResponseDto`, `ChequeListResponseDto`,
+`ChequeLinkResponseDto`, `ChequeCallbackResponseDto`, `ChequeUrlResponseDto`.
+Контракт проверяется offline; живые cheque records пока не проверялись.
+
+### `payouts.list(from_date=None, to_date=None, cursor=None, limit=None)`
+
+`GET /api/v1/payouts` с обязательным JWT возвращает одну `CursorPage[Payout]`.
+Даты — optional aware datetime, передаваемые в `fromDate` / `toDate` через
+`isoformat()` с сохранением offset и дробных секунд; строки и naive datetime
+не принимаются по политике Python API. Можно передать каждую дату отдельно,
+OAS не задаёт требование порядка дат. Cursor непрозрачен, включая пустую строку.
+`None` опускается, серверные defaults не подставляются.
+
+У `limit` в этом GET только OAS type number и example 100: **нет minimum,
+maximum или default**. SDK принимает int без bool и без границ, не переносит
+1–1000 из cheques/invoices. Integer-only — локальная политика Python API;
+передача 0, отрицательных значений или >1000 не означает их принятие сервером.
+Страница возвращается без скрытого перехода по next, в том числе при пустых items.
+
+### `payouts.retrieve(payout_id=None, client_payout_id=None)`
+
+`GET /api/v1/payout`, точный singular path. Хотя оба query optional, 400
+`missing_payout_identifier` требует хотя бы один identifier. SDK принимает
+непустые строки длиной 1–100, сохраняет ведущие нули и произвольные символы,
+передаёт оба как `payoutId` / `clientPayoutId` при наличии. Приоритет OAS не задаёт;
+maxLength 50 из create здесь не применяется.
+
+У `Payout` обязательны `payout_id`, `target`, `target_type`, `asset`, `amount`,
+`status`. Amount читается через Money в Decimal без float. Response status и
+target type остаются строками с поддержкой неизвестных значений. Необязательны
+`client_payout_id`, `description`, `callback`; в `PayoutCallback` необязательны
+`callback_url` и object `payload`. Optional response поля допускают None по
+существующей политике Pay, без заявления о подтверждённой live nullability.
+Неизвестные поля payout/callback/page/pagination сохраняются.
+
+Источники: `#/paths/~1api~1v1~1payouts/get`, `#/paths/~1api~1v1~1payout/get`,
+`AppPayoutResponseDto`, `AppPayoutListResponseDto`, `PayoutCallbackDto`.
+Особые ошибки: list — 400 `validation_error` (Invalid cursor), retrieve — 400
+`missing_payout_identifier`, 404 `app_payout_not_found`. Все проходят общий
+decoder HTTP ошибок без retries. Проверено offline, живые payout records
+в этой задаче не используются.
+
+### `withdrawals.list(from_date=None, to_date=None, status=None, cursor=None, limit=None)`
+
+`GET /api/v1/withdrawals` с обязательным JWT возвращает одну `CursorPage[Withdrawal]`.
+Date filters — aware datetime → `fromDate` / `toDate` через `isoformat()`;
+каждая дата optional, порядок не ограничен. Это та же политика Python API, что
+у payouts: строки/naive datetime отвергаются, offset/доли секунды сохраняются.
+Request status принимает только `CREATED`, `COMPLETED`, `FAIL` с точным регистром.
+Cursor opaque, включая пустую строку. Limit — int без bool и без диапазона:
+этот GET OAS задаёт number без minimum/maximum/default; серверные bounds неизвестны.
+None queries опускаются, следующий cursor автоматически не запрашивается.
+
+### `withdrawals.retrieve(withdrawal_id=None, client_withdrawal_id=None)`
+
+`GET /api/v1/withdrawal`, singular path. **Локальная политика SDK** требует хотя
+бы один непустой строковый ID длиной 1–100; оба передаются при наличии без
+обещания приоритета. Это guard от запроса без идентификатора, не подтверждение
+серверной семантики: оба query optional, missing-ID 400 в OAS отсутствует (PAY-017).
+Create clientWithdrawalId имеет maxLength 150, retrieve — 100 (PAY-016).
+SDK не скрывает разницу общим validator и не обещает lookup для всей create длины.
+
+`Withdrawal` требует только withdrawal_id, network, address, asset и Money amount.
+Status/comment/tx_hash/tx_link/callback optional; response network/status принимают
+неизвестные строки без смены регистра. В callback оба поля optional, payload —
+object. ClientWithdrawalId не описан в response DTO; при наличии сохраняется extra.
+Optional response поля допускают None по существующему pattern Pay, без live
+подтверждения nullability. Amount не округляется и не обрезается в SDK; upstream
+описание про 9 знаков после запятой не является правилом read decoder.
+
+### `withdrawals.quotas(network=..., asset=...)`
+
+`GET /api/v1/withdrawal-quotas` с обязательными keyword-only network и asset.
+Network — request enum `TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`; asset — строка.
+Пустую строку asset схема не запрещает, SDK не добавляет minLength; её принятие
+сервером не подтверждено. Ответ `WithdrawalQuotas` требует withdraw_min_size,
+withdraw_fee (Money → Decimal), withdraw_fee_asset (str), precision.
+Precision — strict конечное int | float, не деньги: OAS number (PAY-012) не
+ужесточается до integer и не округляется. Bool/строки/NaN/Infinity отвергаются.
+Неизвестные поля сохраняются на всех уровнях response.
+
+Источники: три точных GET, `WithdrawalResponseDto`, `WithdrawalListResponseDto`,
+`WithdrawalCallbackDto`, `WithdrawalQuotasResponseDto`. Проверено offline;
+missing-ID поведение, live quotas и реальные withdrawals этим не подтверждены.
+
 ## 5. Деньги, время, идентификаторы и эволюция schema
 
 ### Деньги
 
 Current передаёт суммы, balances, rates и fees строками. Публичные Python-модели используют `Decimal`; для будущих write methods допускаем `Decimal` и корректную decimal string, сериализуем в JSON string. Не используем binary float как промежуточный формат, не округляем без явного правила API и не считаем все активы имеющими одинаковую precision.
+
+P008: внутренний `RequestMoney` принимает только конечный Decimal или decimal
+string; float, bool, int, NaN/Infinity отвергаются до сети. Response Money остаётся
+прежним типом со своей политикой чтения. Request DTO наследуют
+`xrocket._core.serialization.RequestModel`; response модели в него автоматически не преобразуются.
+Сериализация повторно валидирует изменённые instances и сохраняет Decimal строкой.
+Это относится и к RequestModel внутри Any/payload containers. Общий serializer
+принимает явный JSON/request graph, не использует неявные dataclass/bytes/date
+converters и отвергает циклы, sets, non-string keys и non-finite JSON values.
 
 Примеры wire money: `AppBalanceResponseDto.balance/available/holds`, `InvoiceDto.priceAmount/minPayment`, `InvoicePaymentDto.payAmount/receiveAmount`, `RateResponseDto.rate`, `WithdrawalQuotasResponseDto.withdrawMinSize/withdrawFee`. `WithdrawalQuotasResponseDto.precision` — отдельное числовое поле, а не сумма.
 
@@ -191,6 +388,20 @@ Current передаёт суммы, balances, rates и fees строками. �
 `createdAt` и прочие `date-time` представляем timezone-aware datetime, сохраняя смысл offset. `expiresIn` Current измеряется **в миллисекундах**, включая invoice create default 3600000; `0` означает отсутствие expiration. Legacy `expiredIn` измеряется в секундах.
 
 Отличаем missing и явный null там, где это влияет на запросы. На response стороне учитываем документированные null вопреки ошибкам OAS, перечисленным ниже. Не превращаем объектные `date-time` типы из ошибочной схемы в пользовательский dict API.
+
+Request serializer использует wire aliases и exclude_unset: пропущенное поле
+опускается, явно переданное None сериализуется как null, явный default сохраняется.
+Право конкретного поля принимать null определяет endpoint DTO, не transport.
+Extra response fields и response BaseModel, включая вложенные payload values,
+не пересылаются автоматически; перенос в явный request dict — решение вызывающего кода.
+
+Invoice create/delete используют общий core request с явными
+success_statuses и response adapter: TypeAdapter для JSON, None для пустого body.
+Ресурс invoice create выбирает 200, invoice DELETE — 200 с None;
+будущий payment address выберет 201.
+Пустой JSON success, malformed JSON, неожиданный 2xx или body при empty policy
+дают ResponseValidationError; non-2xx сохраняет общую HTTP problem classification.
+Это offline foundation, не подтверждение живых write endpoints или идемпотентности.
 
 ### Идентификаторы
 
@@ -300,16 +511,17 @@ Webhook реализация — следующий этап после read-onl
 | PAY-005 | `#/components/schemas/InvoiceInternalTransactionDto/properties/payAmount`, `payCurrency`, `receiveAmount`, `receiveCurrency`, `finalizedAt`; аналогичные поля `InvoiceBlockchainTransactionDto` | Prose допускает null; nullable отсутствует | Nullable response override; проверить pending/finalized fixtures |
 | PAY-006 | `#/components/schemas/InvoicePaymentDto/properties/transactions/discriminator` | Discriminator находится на array, тогда как oneOf находится в items | Разбирать discriminator каждого item; не доверять такой генерации |
 | PAY-007 | `#/components/schemas/InvoicePaymentDto/required` | id описан для сопоставления REST/webhook, но не required | Пока id optional, не делать обязательным без доказательства |
-| PAY-008 | `#/components/schemas/InvoiceCreateRequestDto/required` | Required только priceCurrency; errors требуют amount и запрещают одновременно priceAmount/minPayment | В write phase выразить условие отдельной validation; сверить open-amount semantics |
+| PAY-008 | `#/components/schemas/InvoiceCreateRequestDto/required` | Required только priceCurrency; errors требуют amount и запрещают одновременно priceAmount/minPayment | P009 запрещает обе суммы, допускает ни одной по schema; acceptance open amount/без сумм и денежные bounds не подтверждены live, оставлены серверу |
 | PAY-009 | `#/components/schemas/MassPayoutsCreateRequestDto/properties/payouts/items/maxLength` | maxLength 500 на object item, а не maxItems на массиве | Не считать это валидным ограничением размера batch; уточнить реальный лимит |
 | PAY-010 | `#/components/schemas/MassPayoutsPayoutRequestDto/properties/targetType`, `#/components/schemas/MassPayoutsErrorResponseDto/properties/targetType` | Enum допускает 3 target types, prose только TelegramUserId | Для batch планировать telegram_user_id до уточнения |
 | PAY-011 | `#/components/schemas/InvoiceDto/properties/status`, `#/components/schemas/InvoicePaymentDto/properties/status`, transaction statuses, webhook event fields | Closed enum против prose о расширении | Response decode принимает unknown strings/events |
-| PAY-012 | `#/paths/~1api~1v1~1invoices/get/parameters/5/schema`, `#/components/schemas/CursorPaginationResponseDto/properties/total`, `#/components/schemas/InvoiceCreateRequestDto/properties/numPayments`, `#/components/schemas/WithdrawalQuotasResponseDto/properties/precision` | Счётчики/limit/precision представлены number | Не интерпретировать как money; integer coercion проверять fixtures |
+| PAY-012 | `#/paths/~1api~1v1~1invoices/get/parameters/5/schema`, `#/components/schemas/CursorPaginationResponseDto/properties/total`, `#/components/schemas/InvoiceCreateRequestDto/properties/numPayments`, `#/components/schemas/WithdrawalQuotasResponseDto/properties/precision` | Счётчики/limit/precision представлены number | Не money. P009 numPayments/expiresIn strict integer — локальная SDK policy без silent coercion, не доказательство серверного integer-only контракта; quotas precision допускает float |
 | PAY-013 | `#/paths/~1api~1v1~1invoices/post/responses/401/content/application~1json/schema/description` | Current 401 description “Unknown API Key” | Auth определяется bearer scheme, не устаревшим текстом ошибки |
 | PAY-014 | `#/paths/~1api~1v1~1invoice/delete/responses/200`, `#/paths/~1api~1v1~1cheques/delete/responses/200` | Нет response content/schema | Не требовать JSON body |
 | PAY-015 | `#/paths/~1api~1v1~1invoices/get/parameters/2`, `#/paths/~1api~1v1~1rates/get/parameters/1` | Array query без explicit style/explode | OAS default repeated keys, подтвердить живым запросом |
 | PAY-016 | `#/components/schemas/WithdrawalCreateRequestDto/properties/clientWithdrawalId/maxLength`, `#/paths/~1api~1v1~1withdrawal/get/parameters/1/schema/maxLength` | Create допускает 150 chars, retrieve только 100 | Не обещать retrieve by client ID для всей create длины; уточнить upstream |
-| PAY-017 | `#/paths/~1api~1v1~1withdrawal/get/parameters`, `#/paths/~1api~1v1~1withdrawal/get/responses` | Оба идентификатора optional; нет документированного missing-identifier 400 | Уточнить семантику до write/retrieve withdrawal реализации |
+| PAY-017 | `#/paths/~1api~1v1~1withdrawal/get/parameters`, `#/paths/~1api~1v1~1withdrawal/get/responses` | Оба идентификатора optional; нет документированного missing-identifier 400 | В P006 retrieve требует ID только как локальный SDK guard; upstream поведение без ID/приоритет двух ID не подтверждены. Уточнить до write phase, не утверждать missing-ID 400 |
+| PAY-018 | `#/paths/~1health/get/responses/200/content/application~1json/schema` | P007 testnet 2026-10-17: HTTP 200 содержит только `{"status":"ok"}`, OAS требует также info/error/details | P019: missing collections → None (unknown), provided lists сохраняются, explicit null отвергается. Полный OAS response поддержан; [журнал](live-verification.md). Snapshot не менялся |
 
 В PAY-005 перечисленные короткие имена после первого pointer обозначают поля того же `properties`; полный exact pointer для примера: `#/components/schemas/InvoiceBlockchainTransactionDto/properties/receiveAmount`.
 
@@ -356,7 +568,12 @@ Offline contract tests через подставной transport покрыва�
 8. 401/404/429/500 problem objects; unknown type/kind; JSON без обязательных problem fields; non-JSON HTTP error; transport timeout.
 9. По умолчанию один HTTP attempt; injected HTTP client закрывается только владельцем, SDK-owned client закрывается SDK.
 
-Live smoke opt-in: публичные GET currencies/rates/health, затем приватные app.info/app.balances/invoices.list/retrieve только при testnet JWT. Отсутствие testnet token означает пропуск live private tests с понятной причиной, а не подмену fixture живым успехом. POST/PUT/DELETE для первого этапа не нужны.
+Live smoke opt-in: публичные GET currencies/rates/health, затем все реализованные
+private GET только при `XROCKET_PAY_TESTNET_TOKEN`. Retrieve/payment используют
+только явные ID fixtures, quotas — явную пару network/asset. Отсутствие JWT/fixtures
+даёт независимые skips; сеть/HTTP/schema errors при opt-in остаются failure.
+Реализация harness и результаты — в [плане](test-plan.md) и
+[журнале live](live-verification.md). POST/PUT/DELETE не выполняются.
 
 Стабильные fixtures записываем без токенов, персональных данных и платежных реквизитов. В отчёте проверки различаем offline contract pass и live verification; успешный mock не подтверждает дефекты upstream и optional auth.
 
@@ -366,6 +583,7 @@ Live smoke opt-in: публичные GET currencies/rates/health, затем п
 - Поддерживают ли ids/assets OAS default repeated keys? Есть ли max count и допускается ли comma-separated форма?
 - Какие именно nullable поля реально возвращаются как null, а какие опускаются? Подтвердить pending и finalized invoice payments.
 - Возвращаются ли total/limit/precision только integers, и какие default/minimum limit действуют в каждом list endpoint?
+- Как API считает prose limit4KB для invoice data/callback.payload: bytes/characters, encoding, whitespace и scope size?
 - Что происходит при одинаковом client ID и одинаковом/разном body: duplicate error или replay, каков срок и scope дедупликации?
 - Почему длина clientWithdrawalId различается между create и retrieve?
 - Каков фактический batch limit mass payouts, какие target types разрешены и как атомарность/частичный успех соотносятся с balance checks?

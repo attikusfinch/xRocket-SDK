@@ -6,15 +6,36 @@
 ## Есть сейчас
 
 - Python SDK `xrocket-sdk` 0.1.0.dev0, `src` layout, HTTPX/Pydantic, Python 3.11+.
-- `PayClient` / `AsyncPayClient`, ресурсы app, currencies, health, rates, invoices.
-- Реализованы 8 из 25 Current Pay операций: health, app-info, balances, currencies,
-  rates, invoices list/retrieve/payments (все GET). `health.get()` возвращает
-  типизированный `Health` без обязательного токена. `invoices.payments()` читает
-  одну страницу с typed internal/blockchain transactions и явным unknown fallback.
+- `PayClient` / `AsyncPayClient`: app, cheques, currencies, health, rates, invoices,
+  payouts, withdrawals. Реализованы 17 из 25 Current Pay операций:
+  все 15 GET и invoice create/delete.
+- `health.get()` публичен; invoices поддерживают list/retrieve/payments, cheques
+  и payouts — list/retrieve, withdrawals — list/retrieve/quotas.
+  Каждый list читает одну страницу. Invoice payments имеют typed transactions
+  и явный unknown fallback. Полный контракт — в [spec/pay-api.md](../spec/pay-api.md).
+  P019 исправила PAY-018: status-only health читается; отсутствующие component
+  collections — None (unknown), переданные [] сохраняются, explicit null отвергается.
+  Для roundtrip missing используйте `model_dump(exclude_unset=True)`.
+- List dates требуют aware datetime, cursor opaque. У payouts/withdrawals limit
+  целочисленный без диапазона (OAS не задаёт bounds); у cheques — 1–1000.
+- Withdrawal.amount и quotas min/fee — Decimal, quotas precision — strict конечное
+  int/float без integer coercion. Response withdrawal status optional, network/status
+  принимают неизвестные строки с сохранением регистра. Quotas требуют network/asset.
 - Общие HTTP/errors, Decimal, aware datetime, aliases, unknown fields/statuses,
   явные страницы, ownership сессий, изоляция auth, без retries и redirects.
-- Pay-модели разделены на пакет `pay/models/`: app, currencies, rates, invoices,
-  отдельные `_base` (response config/Money) и pagination. Прежние public imports
+- P008: внутренний core поддерживает GET/POST/PUT/DELETE через request с явными
+  success_statuses и TypeAdapter/None (JSON/строго пустой ответ); прежний get API
+  сохранён. RequestModel/RequestMoney/serialize_request отделены от response DTO,
+  aliases/missing/null и точные деньги проверяются до I/O, также внутри Any.
+  P009 использует этот фундамент для публичных invoice create/delete.
+- `invoices.create(request=InvoiceCreateRequest(...))` возвращает Invoice на 200;
+  отдельные typed Callback/URL/CustomerRequest, strict camelCase inputs, точные суммы,
+  millisecond expires_in/0 и omission. Explicit None запрещён по non-nullable OAS.
+  Both amounts отвергаются, neither allowed по schema (PAY-008 остаётся открытым).
+  `delete(invoice_id=..., client_invoice_id=...)` возвращает None на пустой 200.
+  Create client ID без OAS maxLength; DELETE IDs — непустые str 1–100.
+- Pay-модели разделены по реализованным ресурсам в `pay/models/`, с отдельными
+  `_base` (response config/Money) и pagination. Прежние public imports
   из `xrocket.pay.models` и `xrocket.pay` сохранены.
 - Current и Legacy OAS с checksum, архитектура, сравнение SDK и контракт Pay.
 - `xrocket.exchange` содержит только зарезервированный namespace.
@@ -22,7 +43,7 @@
 
 ## Подтверждённая база
 
-В предыдущей сессии: 156 offline tests; 2 public testnet GET tests; Ruff, strict
+Первый срез BASE: 156 offline tests; 2 public testnet GET tests; Ruff, strict
 mypy (13 source files), wheel/sdist и editable install прошли на Windows/Python
 3.12.14. Это **исторический результат**, не автоматическая гарантия текущего кода.
 См. [BASE handoff](handoffs/BASE-01.md) и [spec/verification.md](../spec/verification.md).
@@ -30,24 +51,60 @@ mypy (13 source files), wheel/sdist и editable install прошли на Window
 
 P001 (структура моделей) и P002 (health) завершены; их отдельные результаты —
 в [P001 handoff](handoffs/P001-01.md) и [P002 handoff](handoffs/P002-01.md).
-Последняя проверенная задача P003: 376 offline tests, Ruff, strict mypy
-(22 source files), build и isolated wheel smoke прошли. Live не запускался.
-См. [P003 handoff](handoffs/P003-01.md). Nullable overrides платежей пока
-подтверждены только synthetic fixtures, не реальными payment records.
+Другие завершённые read-задачи: [P003](handoffs/P003-01.md),
+[P004](handoffs/P004-01.md), [P005](handoffs/P005-01.md). Их результаты исторические;
+nullable overrides платежей, cheque/payout records подтверждены только synthetic fixtures.
+
+Результаты P006/P007 — в [P006 handoff](handoffs/P006-01.md) и
+[P007 handoff](handoffs/P007-01.md). На Windows обычный full pytest ранее давал
+setup WinError 10055; рабочий override — `-o asyncio_default_test_loop_scope=session`.
+Постоянный loop scope не менялся.
+
+Live P007: public currencies/rates подтверждены sync/async (4 passed),
+health — 2 ResponseValidationError. Отдельный GET подтвердил HTTP 200
+`{"status":"ok"}` без обязательных по OAS info/error/details. Private — 34 skips,
+JWT/ID/quota fixtures отсутствуют. См. [журнал](../spec/live-verification.md) и
+[P007 handoff](handoffs/P007-01.md); private подтверждения не подменены mock pass.
+
+Задача [P019](handoffs/P019-01.md): 53 целевых и 907 full offline tests
+с указанным override прошли (40 live deselected). Ruff, strict mypy (28 files),
+wheel/sdist и wheel-only Health smoke прошли. Повторный public testnet health
+sync/async — 2 passed; исходный failure P007 сохранён в журнале как история.
+
+Задача [P008](handoffs/P008-01.md): 460 целевых и 1221 full offline tests
+с session-loop override прошли (40 live deselected); Ruff, strict mypy (29 files),
+wheel/sdist и wheel-only sync/async mock writes прошли. Live не запускался,
+исторические health/testnet результаты не подменены новым mock pass.
+
+Последняя задача [P009](handoffs/P009-01.md): 365 целевых и 1480 full offline tests,
+Ruff, strict mypy (30 files), wheel/sdist и wheel-only sync/async invoice mock writes
+прошли с session-loop override (40 live deselected). Исправлен serializer edge case:
+required поля не теряются из-за вручную пустого fields_set; исходные DTO не меняются.
+Live invoice mutations не выполнялись.
 
 ## Ограничения и ближайшее направление
 
-Pay: ещё нет write methods, GET cheques/payouts/withdrawals и webhook verification/events.
-Приватные live tests не запускались: testnet JWT пользователь не предоставлял.
+Pay: остальные write methods и webhook verification/events ещё не реализованы.
+PAY-008: server acceptance invoice без сумм/open amount не подтверждён, monetary
+bounds не угаданы. Integer num_payments/expires_in — SDK policy при OAS number;
+prose4KB data/payload limit без определённой size metric оставлен серверу.
+PAY-017 остаётся открытым: отсутствие обоих withdrawal IDs отвергает только
+локальный SDK guard, missing-ID ответ/приоритет двух ID сервером не подтверждены.
+PAY-016: create clientWithdrawalId допускает 150, GET — 100; общего maxLength нет.
+Есть opt-in harness для всех 15 GET (40 sync/async cases). Private live requests
+не выполнялись: testnet JWT отсутствует; независимые skips по отсутствующим ID
+и quota pair проверены offline. Только `XROCKET_PAY_TESTNET_TOKEN`, без fallback.
 Денежных live операций, production проверки, PyPI публикации не было.
 Основной план: небольшие ресурсные задачи Pay, затем Exchange discovery.
 Архитектура остаётся draft, но существующий public API сохраняется при расширении.
 
-Transport умеет только GET; разрешены `/api/` и точный `/health`, без query/fragment
-в path. Следующая доступная задача — P004; она не начата. В текущем запуске по
-явному запросу пользователя последовательно выполнены P002 и P003; продолжение
-остановлено на границе задачи с отдельными handoff, без запуска P004.
-Write foundation вынесен отдельной задачей до write ресурсов. Новые API детали
+Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
+без query/fragment в path. GET body не поддержан, mutations не повторяются.
+Следующая доступная задача — P010 (создание payment address для invoice);
+она не начата. Продолжение — через `tools/session.py next`,
+чтение её карточки и handoff прямой зависимости по обычному протоколу.
+P019 завершена и включена в зависимости финальной P018.
+Write foundation P008 завершён до write ресурсов. Новые API детали
 исследуются в соответствующей карточке, а не угадываются на весь roadmap.
 
 Git инициализирован в корне SDK, ветка `main`, origin:

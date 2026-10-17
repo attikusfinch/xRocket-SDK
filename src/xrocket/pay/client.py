@@ -7,10 +7,13 @@ import httpx
 
 from xrocket._core.transport import AsyncTransport, Environment, SyncTransport
 from xrocket.pay.resources.app import AppResource, AsyncAppResource
+from xrocket.pay.resources.cheques import AsyncChequesResource, ChequesResource
 from xrocket.pay.resources.currencies import AsyncCurrenciesResource, CurrenciesResource
 from xrocket.pay.resources.health import AsyncHealthResource, HealthResource
 from xrocket.pay.resources.invoices import AsyncInvoicesResource, InvoicesResource
+from xrocket.pay.resources.payouts import AsyncPayoutsResource, PayoutsResource
 from xrocket.pay.resources.rates import AsyncRatesResource, RatesResource
+from xrocket.pay.resources.withdrawals import AsyncWithdrawalsResource, WithdrawalsResource
 
 _BASE_URLS: dict[Environment, str] = {
     "mainnet": "https://pay.api.xrocket.exchange",
@@ -47,6 +50,9 @@ class PayClient:
         self.currencies = CurrenciesResource(self._transport)
         self.rates = RatesResource(self._transport)
         self.invoices = InvoicesResource(self._transport)
+        self.cheques = ChequesResource(self._transport)
+        self.payouts = PayoutsResource(self._transport)
+        self.withdrawals = WithdrawalsResource(self._transport)
 
     def close(self) -> None:
         self._transport.close()
@@ -86,6 +92,9 @@ class AsyncPayClient:
         self.currencies = AsyncCurrenciesResource(self._transport)
         self.rates = AsyncRatesResource(self._transport)
         self.invoices = AsyncInvoicesResource(self._transport)
+        self.cheques = AsyncChequesResource(self._transport)
+        self.payouts = AsyncPayoutsResource(self._transport)
+        self.withdrawals = AsyncWithdrawalsResource(self._transport)
 
     async def aclose(self) -> None:
         await self._transport.aclose()
