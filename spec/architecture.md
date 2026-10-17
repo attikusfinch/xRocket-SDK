@@ -32,6 +32,8 @@ src/xrocket/
       invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
       cheque_requests.py # отдельные ChequeCreate/Update/Callback/URLRequest
       payout_requests.py # отдельные PayoutCreateRequest / PayoutCallbackRequest
+                         # и MassPayoutCreateRequest / MassPayoutItemRequest
+      mass_payouts.py    # MassPayoutResult / MassPayoutError / MassPayoutErrorReason
     resources/           # app, cheques, currencies, health, rates, invoices, payouts, withdrawals
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
@@ -123,6 +125,15 @@ target_type, asset и RequestMoney amount. PayoutCallbackRequest не смеши
 create возвращает существующий Payout только на 200. Timeout оставляет неизвестный
 итог после одной HTTP попытки; ручной retrieve по сохранённому client ID — отдельное
 действие, без автоматического lookup/retry или подавления duplicate API error.
+
+Mass payout использует отдельные batch/item request DTO: asset только в batch,
+item target_type ограничен telegram_user_id по prose при противоречивом OAS enum.
+`payouts.create_mass()` возвращает MassPayoutResult с обязательными отдельными
+списками Payout и MassPayoutError с typed reason. HTTP200 может содержать частичный
+или полный набор item failures; has_errors/is_partial явно отражают коллекции.
+Correlation поля/IDs, порядок и дубликаты ответа сохраняются; позиционное
+соответствие request не предполагается. SDK не угадывает batch limit500 по
+ошибочному object maxLength и делает ровно один POST без splitting/replay/retry.
 
 `SyncTransport.request()` / `AsyncTransport.request()` принимают GET/POST/PUT/DELETE,
 явный tuple success_statuses и response adapter: TypeAdapter означает JSON decode,

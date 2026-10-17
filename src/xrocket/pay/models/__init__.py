@@ -36,8 +36,14 @@ from .invoices import (
     InvoicePaymentAddress,
     InvoiceURL,
 )
+from .mass_payouts import MassPayoutError, MassPayoutErrorReason, MassPayoutResult
 from .pagination import CursorPage, CursorPagination
-from .payout_requests import PayoutCallbackRequest, PayoutCreateRequest
+from .payout_requests import (
+    MassPayoutCreateRequest,
+    MassPayoutItemRequest,
+    PayoutCallbackRequest,
+    PayoutCreateRequest,
+)
 from .payouts import Payout, PayoutCallback
 from .rates import Rate
 from .withdrawals import Withdrawal, WithdrawalCallback, WithdrawalQuotas
@@ -78,6 +84,11 @@ __all__ = [
     "InvoicePaymentPayer",
     "InvoiceURL",
     "InvoiceURLRequest",
+    "MassPayoutCreateRequest",
+    "MassPayoutError",
+    "MassPayoutErrorReason",
+    "MassPayoutItemRequest",
+    "MassPayoutResult",
     "Money",
     "Payout",
     "PayoutCallback",

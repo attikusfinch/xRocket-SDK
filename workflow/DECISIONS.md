@@ -35,6 +35,8 @@
 
 | D026 | Single payout — `payouts.create(request=PayoutCreateRequest(...))`, отдельный strict DTO/callback и exact200 AppPayout response. Target/target_type/asset/RequestMoney required, client ID max50, target max100, callback URL max500; description без schema max. Client ID caller-owned, duplicate error открыт, timeout оставляет неизвестный итог после одной HTTP попытки без lookup/retry | Реализовано offline в P012 по Current OAS; ручной retrieve по сохранённому client ID документирован без обещания safe replay. Response enums открыты, live payouts не выполнялись; [контракт](../spec/pay-api.md), [handoff](handoffs/P012-01.md) |
 
+| D027 | Mass payout — `payouts.create_mass(request=MassPayoutCreateRequest(...))`, asset только на batch, отдельный item DTO с target_type=telegram_user_id по prose/summary PAY-010. PAY-009 object maxLength500 не считается maxItems; локальных batch bounds нет. Exact200 возвращает обязательные списки Payout/MassPayoutError с typed reason и has_errors/is_partial; IDs/порядок/дубликаты сохраняются без positional correlation или replay | Реализовано offline в P013 по Current OAS; другие batch target types, server limit/empty acceptance и атомарность/deduplication не подтверждены live. Один POST без splitting/retry/lookup; [контракт](../spec/pay-api.md), [handoff](handoffs/P013-01.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

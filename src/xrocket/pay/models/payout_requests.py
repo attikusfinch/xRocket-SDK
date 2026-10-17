@@ -1,4 +1,4 @@
-"""Explicit inputs for a single Current Pay payout, separate from responses."""
+"""Explicit Current Pay single and mass payout inputs, separate from responses."""
 
 from typing import Any, Literal, Self
 
@@ -41,3 +41,29 @@ class PayoutCreateRequest(_PayoutRequestModel):
     client_payout_id: str | None = Field(default=None, max_length=50)
     description: str | None = None
     callback: PayoutCallbackRequest | None = None
+
+
+class MassPayoutItemRequest(_PayoutRequestModel):
+    """One batch item; asset belongs to the enclosing request.
+
+    Only Telegram user IDs are accepted locally, following the operation prose
+    while the wider schema enum remains unconfirmed (PAY-010).
+    """
+
+    target: str = Field(max_length=100)
+    target_type: Literal["telegram_user_id"]
+    amount: RequestMoney
+    client_payout_id: str | None = Field(default=None, max_length=50)
+    description: str | None = None
+    callback: PayoutCallbackRequest | None = None
+
+
+class MassPayoutCreateRequest(_PayoutRequestModel):
+    """One batch, without an inferred size limit or automatic splitting.
+
+    Save a distinct stable client ID per item if you need to correlate results.
+    No minItems/maxItems is declared by Current OAS (PAY-009).
+    """
+
+    asset: str
+    payouts: list[MassPayoutItemRequest]

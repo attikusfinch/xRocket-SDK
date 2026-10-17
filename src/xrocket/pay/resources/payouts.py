@@ -1,14 +1,21 @@
-"""Explicit payout reads and single-create requests using Current Pay routes."""
+"""Explicit payout reads, single creates and mass creates using Current Pay routes."""
 
 from datetime import datetime
 
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Payout, PayoutCreateRequest
+from xrocket.pay.models import (
+    CursorPage,
+    MassPayoutCreateRequest,
+    MassPayoutResult,
+    Payout,
+    PayoutCreateRequest,
+)
 
 _PAYOUT = TypeAdapter(Payout)
 _PAGE = TypeAdapter(CursorPage[Payout])
+_MASS_PAYOUT = TypeAdapter(MassPayoutResult)
 
 
 def _date_param(name: str, value: datetime) -> str:
@@ -65,6 +72,18 @@ class PayoutsResource:
             "POST", "/api/v1/payouts", _PAYOUT, success_statuses=(200,), body=request
         )
 
+    def create_mass(self, *, request: MassPayoutCreateRequest) -> MassPayoutResult:
+        """Send one batch once, returning separate successes and item errors.
+
+        HTTP 200 does not imply every item succeeded. No splitting, lookup or
+        replay is automatic; a timeout leaves individual outcomes unknown.
+        """
+        if not isinstance(request, MassPayoutCreateRequest):
+            raise TypeError("request must be a MassPayoutCreateRequest")
+        return self._transport.request(
+            "POST", "/api/v1/mass-payouts", _MASS_PAYOUT, success_statuses=(200,), body=request
+        )
+
     def list(
         self,
         *,
@@ -108,6 +127,18 @@ class AsyncPayoutsResource:
             raise TypeError("request must be a PayoutCreateRequest")
         return await self._transport.request(
             "POST", "/api/v1/payouts", _PAYOUT, success_statuses=(200,), body=request
+        )
+
+    async def create_mass(self, *, request: MassPayoutCreateRequest) -> MassPayoutResult:
+        """Send one batch once, returning separate successes and item errors.
+
+        HTTP 200 does not imply every item succeeded. No splitting, lookup or
+        replay is automatic; a timeout leaves individual outcomes unknown.
+        """
+        if not isinstance(request, MassPayoutCreateRequest):
+            raise TypeError("request must be a MassPayoutCreateRequest")
+        return await self._transport.request(
+            "POST", "/api/v1/mass-payouts", _MASS_PAYOUT, success_statuses=(200,), body=request
         )
 
     async def list(

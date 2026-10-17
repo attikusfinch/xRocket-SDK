@@ -40,6 +40,7 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.payouts.list(from_date=..., to_date=..., cursor=..., limit=...)` | `GET /api/v1/payouts` |
 | `pay.payouts.retrieve(payout_id=..., client_payout_id=...)` | `GET /api/v1/payout` |
 | `pay.payouts.create(request=PayoutCreateRequest(...))` | `POST /api/v1/payouts` |
+| `pay.payouts.create_mass(request=MassPayoutCreateRequest(...))` | `POST /api/v1/mass-payouts` |
 | `pay.withdrawals.list(from_date=..., to_date=..., status=..., cursor=..., limit=...)` | `GET /api/v1/withdrawals` |
 | `pay.withdrawals.retrieve(withdrawal_id=..., client_withdrawal_id=...)` | `GET /api/v1/withdrawal` |
 | `pay.withdrawals.quotas(network=..., asset=...)` | `GET /api/v1/withdrawal-quotas` |
@@ -128,6 +129,31 @@ HTTP 200 возвращает `Payout`; async использует те же а�
 `pay.payouts.retrieve(client_payout_id=saved_id)` (в async — с `await`) для сверки.
 Это отдельный GET; not-found сам по себе не доказывает безопасность повторной
 выплаты. Срок и scope дедупликации сервером не подтверждены.
+
+`payouts.create_mass()` принимает `MassPayoutCreateRequest(asset=..., payouts=[...])`.
+Внутри — отдельные `MassPayoutItemRequest` без asset: обязательны `target`,
+`target_type="telegram_user_id"` и точный `amount`; client ID, description и
+`PayoutCallbackRequest` необязательны с теми же omission/null правилами.
+Для batch разрешён только Telegram user ID по описанию операции: более широкий
+OAS enum противоречит prose и пока не подтверждён (PAY-010). Локального лимита
+размера batch нет: ошибочный `maxLength: 500` на object не задаёт `maxItems`
+(PAY-009). Принятие сервером пустого или большого batch не подтверждено.
+
+HTTP 200 возвращает `MassPayoutResult`: `success_payouts` содержит `Payout`,
+`error_payouts` — `MassPayoutError` с typed `MassPayoutErrorReason`.
+`result.has_errors` отмечает наличие ошибок, `result.is_partial` — смесь успехов
+и ошибок. Проверяйте оба массива, в том числе когда все items завершились ошибкой.
+Все DTO публичны из `xrocket.pay` и `xrocket.pay.models`; async использует `await`.
+
+Сохраните отдельный стабильный client ID каждого item до отправки. IDs, ведущие
+нули, порядок и дубликаты в каждом массиве ответа сохраняются. Позиции ответа
+не сопоставляются с request: API не обещает общий порядок и не даёт index для
+ошибок. Без уникальных client IDs однозначная корреляция не гарантируется.
+SDK делает один POST без разбиения, параллельных single payouts, lookup или
+автоповтора. Успешные items не повторяются. После timeout исход каждого item
+неизвестен; сверяйте его отдельно по сохранённому ID. Не повторяйте весь batch
+по факту частичной ошибки; безопасная семантика replay не подтверждена live.
+
 `withdrawals.list()` возвращает одну `CursorPage[Withdrawal]` с такими же date/cursor/
 limit правилами, как payouts. Фильтр `status` принимает `CREATED`, `COMPLETED`, `FAIL`.
 В ответе status необязателен и допускает неизвестные строки с сохранением регистра.
@@ -146,7 +172,7 @@ P008 добавил внутренний фундамент записи: общ
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
 missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
 P010 — создание invoice payment address, P011 — create/update/delete cheques,
-P012 — создание одиночного payout;
+P012 — создание одиночного payout, P013 — mass payouts с отдельными успехами/ошибками;
 остальные Pay write методы добавляются отдельными задачами с offline проверками.
 
 ## Установка для разработки

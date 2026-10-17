@@ -294,12 +294,12 @@
     {
       "id": "P013",
       "title": "Mass payouts и явный частичный результат",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P012"
       ],
       "card": "tasks/P013.md",
-      "handoff": null,
+      "handoff": "handoffs/P013-01.md",
       "operations": [
         {
           "method": "POST",

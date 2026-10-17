@@ -1,15 +1,15 @@
 # Текущее состояние SDK
 
-Обновлено: 2026-10-17. Это краткий контекст; статусы и выбор следующей задачи —
+Обновлено: 2026-10-18. Это краткий контекст; статусы и выбор следующей задачи —
 только в [tasks.json](tasks.json), воспроизводимые результаты — в handoffs.
 
 ## Есть сейчас
 
 - Python SDK `xrocket-sdk` 0.1.0.dev0, `src` layout, HTTPX/Pydantic, Python 3.11+.
 - `PayClient` / `AsyncPayClient`: app, cheques, currencies, health, rates, invoices,
-  payouts, withdrawals. Реализованы 22 из 25 Current Pay операций:
+  payouts, withdrawals. Реализованы 23 из 25 Current Pay операций:
   все 15 GET, invoice create/delete, создание payment address, cheque create/update/delete
-  и создание одиночного payout.
+  и создание одиночного payout/mass payouts.
 - `health.get()` публичен; invoices поддерживают list/retrieve/payments, cheques
   и payouts — list/retrieve, withdrawals — list/retrieve/quotas.
   Каждый list читает одну страницу. Invoice payments имеют typed transactions
@@ -63,6 +63,14 @@
   explicit None запрещён. Client ID не генерируется и не меняется, duplicate
   API error не скрывается. Timeout оставляет неизвестный итог после одной HTTP
   попытки без lookup/retry; ручной retrieve по сохранённому client ID документирован.
+- P013: `payouts.create_mass(request=MassPayoutCreateRequest(...))` делает один POST
+  и на 200 возвращает `MassPayoutResult` с отдельными обязательными success_payouts
+  (`Payout`) / error_payouts (`MassPayoutError` с typed reason), has_errors/is_partial.
+  Batch asset не дублируется в item; request target_type только telegram_user_id
+  по prose/summary при противоречивом OAS enum (PAY-010). Лимит500/непустота
+  не выводятся из ошибочного object maxLength (PAY-009). IDs, порядок/дубликаты
+  ответа сохраняются без позиционного matching или генерации/подстановки IDs.
+  Нет splitting/fan-out/retry/replay; timeout оставляет исход items неизвестным.
 - Current и Legacy OAS с checksum, архитектура, сравнение SDK и контракт Pay.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
@@ -138,6 +146,17 @@ wheel/sdist и wheel-only sync/async payout create smoke прошли. Timeout/d
 Локальный commit — candidate для независимого review координатора;
 push/live выплаты worker не выполняет.
 
+P012 затем принята и опубликована координатором до начала P013;
+evidence — [P012-01 review](reviews/P012-01.md).
+
+Задача [P013](handoffs/P013-01.md): 175 целевых и 2295 full offline tests прошли
+с session-loop override (40 live deselected); Ruff, strict mypy (33 files),
+wheel/sdist и wheel-only sync/async mixed batch smoke прошли. Проверены три
+варианта результата, точная wire serialization, исходные IDs/дубликаты,
+отсутствие придуманного limit500 и ровно один HTTP attempt без retry/replay.
+Локальный commit — candidate для независимого review координатора;
+push/live batch выплаты worker не выполняет.
+
 ## Ограничения и ближайшее направление
 
 Pay: остальные write methods и webhook verification/events ещё не реализованы.
@@ -156,7 +175,9 @@ PAY-016: create clientWithdrawalId допускает 150, GET — 100; обще
 
 Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
-Следующая доступная задача — P013 (mass payouts);
+PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
+batch target types, атомарность и deduplication/replay semantics live не подтверждены.
+Следующая доступная задача — P014 (withdrawal create);
 она не начата. Продолжение — через `tools/session.py next`,
 чтение её карточки и handoff прямой зависимости по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.

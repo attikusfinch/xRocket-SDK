@@ -425,6 +425,69 @@ client ID до отправки, затем при необходимости о
 `PayoutCallbackRequestDto`, `AppPayoutResponseDto`. Проверено offline,
 live выплаты не выполнялись.
 
+### `payouts.create_mass(request=MassPayoutCreateRequest(...))`
+
+`POST /api/v1/mass-payouts`, обязательный JWT, exact HTTP 200 возвращает
+`MassPayoutResult`. Sync/async сигнатуры совпадают. Все новые DTO публичны из
+`xrocket.pay` и `xrocket.pay.models`; request отделён от response.
+
+`MassPayoutCreateRequest` требует `asset: str` и `payouts: list[MassPayoutItemRequest]`.
+Asset задаётся один раз, в item его нет. Item требует `target: str` (max100),
+`target_type` и `amount` (finite Decimal/decimal string → точная JSON string).
+Optional: `client_payout_id` (max50), `description` (без schema maxLength),
+`callback: PayoutCallbackRequest` (callback_url max500 и object payload).
+Strict inputs/extra forbid, aliases, recursive omission, запрет explicit None,
+повторная валидация constructed/mutated DTO и точные деньги следуют single payout.
+SDK не вводит minLength, positivity/amount bounds или payload4KB size metric.
+
+PAY-010: request принимает только `telegram_user_id`, следуя operation summary
+«Telegram users only» и targetType prose «only TelegramUserId». Enum одновременно
+перечисляет user_id / telegram_user_id / telegram_username. Это явная ограниченная
+SDK policy до уточнения upstream, а не утверждение о live поведении сервера.
+Single payout сохраняет три target types. Response target_type остаётся открытым str.
+
+PAY-009: массив payouts не имеет minItems/maxItems. `items/maxLength: 500` стоит
+на object item и не задаёт длину массива. SDK не угадывает ни предел500, ни
+обязательную непустоту и не разбивает batch автоматически. Серверный предел и
+принятие пустого/большого массива остаются неподтверждёнными; offline cases
+проверяют только отсутствие выдуманных локальных ограничений и второй HTTP попытки.
+
+Оба response массива обязательны даже при пустом содержимом:
+
+- `success_payouts` / successPayouts — `list[Payout]` из AppPayoutResponseDto;
+  сохраняются payout_id, client_payout_id, точный amount и открытые status/target_type.
+- `error_payouts` / errorPayouts — `list[MassPayoutError]`: required target,
+  target_type, Money amount, reason; optional client_payout_id и description.
+  В schema ошибки нет asset, payoutId, callback или request index.
+- `MassPayoutErrorReason` требует type/title/status/detail/instance/kind. Status
+  по OAS number сохраняется как strict finite int/float без integer coercion;
+  type/kind открыты. Неизвестные поля сохраняются на wrapper/item/reason.
+
+`has_errors` означает непустой error_payouts; `is_partial` — непустые оба массива.
+All-error HTTP200 остаётся typed результатом с has_errors=True/is_partial=False.
+HTTP200 не означает, что все items успешны; при отсутствующем/невалидном массиве
+вызывается общий ResponseValidationError, а не создаётся ложный пустой результат.
+Отдельные non-2xx сохраняют общие APIError/problem/metadata правила.
+
+Каждый response список сохраняет исходные строки IDs, ведущие нули, дубликаты
+и порядок сервера; dict-дедупликации и positional matching с request нет.
+OAS не гарантирует общий порядок/полноту correlation и не предоставляет index
+ошибки. Сохраните уникальный caller-owned client ID каждого item до отправки;
+при отсутствующем/повторённом ID однозначная корреляция не обещается. SDK не
+генерирует/меняет ID и не подставляет его в response из исходного request.
+
+Один вызов — один HTTP attempt, без splitting, fan-out single payouts, lookup,
+replay или retry. Успешные items автоматически не повторяются. Timeout оставляет
+исход отдельных items неизвестным; возможная явная сверка через retrieve по
+сохранённым client IDs — отдельное действие. Ни частичная ошибка, ни not-found
+не доказывают безопасность повторной выплаты. Balance-check/атомарность,
+deduplication scope/retention и replay semantics live не проверены.
+
+Источники: `#/paths/~1api~1v1~1mass-payouts/post`, MassPayoutsCreateRequestDto,
+MassPayoutsPayoutRequestDto, MassPayoutsCreateResponseDto, MassPayoutsErrorResponseDto,
+MassPayoutsReasonResponseDto, AppPayoutResponseDto и PayoutCallbackRequestDto.
+Snapshots не менялись; live batch/реальные выплаты не выполнялись.
+
 ### `payouts.list(from_date=None, to_date=None, cursor=None, limit=None)`
 
 `GET /api/v1/payouts` с обязательным JWT возвращает одну `CursorPage[Payout]`.
@@ -659,7 +722,7 @@ Webhook реализация — следующий этап после read-onl
 | PAY-007 | `#/components/schemas/InvoicePaymentDto/required` | id описан для сопоставления REST/webhook, но не required | Пока id optional, не делать обязательным без доказательства |
 | PAY-008 | `#/components/schemas/InvoiceCreateRequestDto/required` | Required только priceCurrency; errors требуют amount и запрещают одновременно priceAmount/minPayment | P009 запрещает обе суммы, допускает ни одной по schema; acceptance open amount/без сумм и денежные bounds не подтверждены live, оставлены серверу |
 | PAY-009 | `#/components/schemas/MassPayoutsCreateRequestDto/properties/payouts/items/maxLength` | maxLength 500 на object item, а не maxItems на массиве | Не считать это валидным ограничением размера batch; уточнить реальный лимит |
-| PAY-010 | `#/components/schemas/MassPayoutsPayoutRequestDto/properties/targetType`, `#/components/schemas/MassPayoutsErrorResponseDto/properties/targetType` | Enum допускает 3 target types, prose только TelegramUserId | Для batch планировать telegram_user_id до уточнения |
+| PAY-010 | `#/components/schemas/MassPayoutsPayoutRequestDto/properties/targetType`, `#/components/schemas/MassPayoutsErrorResponseDto/properties/targetType` | Enum допускает 3 target types, prose только TelegramUserId | P013 batch request принимает только telegram_user_id по prose/summary; response открыт. Остальные target types/live acceptance не подтверждены |
 | PAY-011 | `#/components/schemas/InvoiceDto/properties/status`, `#/components/schemas/InvoicePaymentDto/properties/status`, transaction statuses, webhook event fields | Closed enum против prose о расширении | Response decode принимает unknown strings/events |
 | PAY-012 | `#/paths/~1api~1v1~1invoices/get/parameters/5/schema`, `#/components/schemas/CursorPaginationResponseDto/properties/total`, `#/components/schemas/InvoiceCreateRequestDto/properties/numPayments`, `#/components/schemas/WithdrawalQuotasResponseDto/properties/precision` | Счётчики/limit/precision представлены number | Не money. P009 numPayments/expiresIn strict integer — локальная SDK policy без silent coercion, не доказательство серверного integer-only контракта; quotas precision допускает float |
 | PAY-013 | `#/paths/~1api~1v1~1invoices/post/responses/401/content/application~1json/schema/description` | Current 401 description “Unknown API Key” | Auth определяется bearer scheme, не устаревшим текстом ошибки |
