@@ -60,12 +60,12 @@
     {
       "id": "GIT001",
       "title": "Подключить GitHub и исключить локальные файлы",
-      "status": "blocked",
+      "status": "done",
       "depends_on": [
         "P001"
       ],
       "card": "tasks/GIT001.md",
-      "handoff": "handoffs/GIT001-02.md",
+      "handoff": "handoffs/GIT001-03.md",
       "operations": []
     },
     {
