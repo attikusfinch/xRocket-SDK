@@ -57,3 +57,6 @@ Desktop.ini
 /.tmp/
 /logs/
 /.codex-log/
+
+# Local coordinator state, thread IDs and dispatch checkpoints
+/workflow/.autopilot/

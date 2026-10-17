@@ -25,6 +25,7 @@ dev = [
 packages = ["src/xrocket"]
 
 [tool.hatch.build.targets.sdist]
+exclude = ["/workflow/.autopilot/**"]
 include = [
   "/src", "/tests", "/spec", "/README.md", "/pyproject.toml", "/requirements-dev.lock",
   "/AGENTS.md", "/START.md", "/workflow", "/tools/session.py",

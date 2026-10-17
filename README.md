@@ -7,6 +7,7 @@ Exchange запланирован отдельным модулем того ж�
 ## С чего начать чтение
 
 - [Новая сессия: стартовый промпт и очередь задач](START.md)
+- [Управляемый цикл: отдельные исполнители, review и Git](workflow/AUTOPILOT.md)
 - [Архитектура и границы Pay/Exchange](spec/architecture.md)
 - [Исследование Stripe, OpenAI, Coinbase и CCXT](spec/sdk-comparison.md)
 - [Pay: все 25 операций, контракты и проблемы документации](spec/pay-api.md)

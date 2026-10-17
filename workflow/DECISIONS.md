@@ -28,6 +28,8 @@
 | D020 | Core request использует явные success_statuses и TypeAdapter/None для JSON/строго пустого ответа; get сохраняет все 2xx. Отдельный RequestModel(extra forbid) сериализуется aliases/exclude_unset с recursive revalidation, RequestMoney — finite Decimal/string без float. Response/implicit object conversion в request запрещены | Реализовано offline в P008; без публичных write resources/retries/idempotency generation/live writes; [архитектура](../spec/architecture.md), [handoff](handoffs/P008-01.md) |
 | D021 | Invoice create/delete используют отдельные strict request DTO, exact200 JSON/empty policies. Neither amount разрешён по schema, both запрещены по amount_conflict; PAY-008 остаётся открытым. NumPayments/expiresIn strict integer — SDK policy, 4KB metric не угадывается. Required wire fields включаются на нормализованном clone даже при custom fields_set | Реализовано offline в P009, без live mutations; IDs/aliases/миллисекунды/0 сохранены, create ID maxLength не переносится из DELETE; [контракт](../spec/pay-api.md), [handoff](handoffs/P009-01.md) |
 
+| D022 | Управляемый цикл: serial local worker на одну карточку, свежий read-only reviewer на candidate SHA, journal/publish checkpoints, 5 минут, automatic GitHub push после принятия | Пользователь явно выбрал частоту и Git-политику 2026-10-17; scope P010–P018/X001, [протокол](AUTOPILOT.md), [handoff](handoffs/AUTO001-01.md). Live деньги/deploy/PyPI не разрешены |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

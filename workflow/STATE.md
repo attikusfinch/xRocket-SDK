@@ -40,6 +40,11 @@
 - Current и Legacy OAS с checksum, архитектура, сравнение SDK и контракт Pay.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
+- Управляемый цикл: текущий чат-координатор, отдельные workers/reviewers, 5 минут,
+  automatic commit/push после tests и принятого review. Scope P010–P018/X001.
+  [Протокол](AUTOPILOT.md), [настройка](handoffs/AUTO001-01.md); текущая фаза и
+  thread IDs — в ignored `workflow/.autopilot/state.json`. Параллельный ручной
+  writer в этом checkout при активном worker не запускается.
 
 ## Подтверждённая база
 

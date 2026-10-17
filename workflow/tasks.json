@@ -223,6 +223,17 @@
       ]
     },
     {
+      "id": "AUTO001",
+      "title": "Включить контролируемый цикл разработки",
+      "status": "done",
+      "depends_on": [
+        "P009"
+      ],
+      "card": "tasks/AUTO001.md",
+      "handoff": "handoffs/AUTO001-01.md",
+      "operations": []
+    },
+    {
       "id": "P010",
       "title": "Создание payment address для invoice",
       "status": "todo",
