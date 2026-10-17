@@ -3,6 +3,7 @@
 import inspect
 import json
 import logging
+import traceback
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from decimal import Decimal
@@ -717,6 +718,98 @@ async def test_password_stays_out_of_errors_and_http_logs(
         assert PASSWORD not in repr(caught.value.errors())
         assert PASSWORD not in caught.value.json()
     assert len(calls) == (0 if failure == "validation" else 1)
+
+
+@pytest.mark.parametrize("location", ["callback_text", "callback_key", "password"])
+@pytest.mark.parametrize("surrogate", [chr(0xD800), chr(0xDFFF)], ids=["high", "low"])
+async def test_invalid_unicode_cannot_expose_password_through_encoding_errors(
+    asynchronous: bool,
+    location: str,
+    surrogate: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    password = PASSWORD + surrogate if location == "password" else PASSWORD
+    payload = (
+        {"nested": [{"text": surrogate}]}
+        if location == "callback_text"
+        else {"nested": [{surrogate: "synthetic"}]}
+        if location == "callback_key"
+        else {}
+    )
+    body = ChequeCreateRequest(
+        asset="USDT",
+        amount="1",
+        password=password,
+        callback=ChequeCallbackRequest(payload=payload),
+    )
+    calls: list[httpx.Request] = []
+
+    def unexpected(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        pytest.fail("A cheque request containing an unpaired surrogate reached the network")
+
+    with caplog.at_level(logging.DEBUG):
+        async with _client(asynchronous, unexpected) as client:
+            with pytest.raises(ValueError) as caught:
+                await _resolve(client.cheques.create(request=body))
+        error = caught.value
+        logging.getLogger("synthetic.cheque").error(
+            "Cheque request rejected", exc_info=(type(error), error, error.__traceback__)
+        )
+
+    assert type(error) is ValueError
+    assert calls == []
+    pending: list[BaseException] = [error]
+    seen: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        representations = [
+            str(current),
+            repr(current),
+            repr(current.args),
+            repr(getattr(current, "object", None)),
+            "".join(traceback.format_exception(current)),
+        ]
+        assert PASSWORD not in "\n".join(representations)
+        pending.extend(
+            nested for nested in (current.__cause__, current.__context__) if nested is not None
+        )
+    assert PASSWORD not in caplog.text
+
+
+async def test_valid_unicode_and_astral_characters_preserve_wire_bytes(
+    asynchronous: bool,
+) -> None:
+    text = "Заказ 東京 🎁 𐐷 e\u0301"
+    body = ChequeCreateRequest(
+        asset="USDT",
+        amount=Decimal("123.4500"),
+        password=PASSWORD + text,
+        description=text,
+        callback=ChequeCallbackRequest(payload={text: [text]}),
+    )
+    calls: list[httpx.Request] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return httpx.Response(200, json=CHEQUE)
+
+    async with _client(asynchronous, respond) as client:
+        result = await _resolve(client.cheques.create(request=body))
+
+    assert isinstance(result, Cheque)
+    assert len(calls) == 1
+    assert text.encode("utf-8") in calls[0].content
+    assert json.loads(calls[0].content.decode("utf-8")) == {
+        "asset": "USDT",
+        "amount": "123.4500",
+        "password": PASSWORD + text,
+        "description": text,
+        "callback": {"payload": {text: [text]}},
+    }
 
 
 def test_public_request_exports_and_resource_signatures_are_symmetric() -> None:

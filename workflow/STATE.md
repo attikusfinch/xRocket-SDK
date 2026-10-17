@@ -49,6 +49,9 @@
   None на строго пустой 200. Password — SecretStr, обычные dumps/repr маскируются,
   field/model validation inputs удаляются из structured errors; raw HTTP body
   доступен явно. Cheque response и прежние public imports сохранены.
+  Исправление P011-02 отвергает surrogate code points в request строках/ключах
+  до создания JSON, чтобы UnicodeEncodeError не сохранял wire password.
+  Нормальный Unicode/astral symbols сохраняются точным UTF-8.
 - Pay-модели разделены по реализованным ресурсам в `pay/models/`, с отдельными
   `_base` (response config/Money) и pagination. Прежние public imports
   из `xrocket.pay.models` и `xrocket.pay` сохранены.
@@ -108,10 +111,13 @@ Live invoice mutations не выполнялись.
 Независимое review принято: [P010-01](reviews/P010-01.md); координатор опубликовал
 результат до начала P011. Live address creation не выполнялся.
 
-Последняя задача [P011](handoffs/P011-01.md): 744 целевых (cheque reads/writes +
-request serialization/write transport) и 1955 full offline tests прошли
+Первый candidate P011 получил changes_requested: [P011-01 review](reviews/P011-01.md)
+обнаружил утечку password через UnicodeEncodeError при surrogate input;
+прежние 744/1955 passing tests этот случай не покрывали.
+Исправление [P011-02](handoffs/P011-02.md): 771 целевой (cheque reads/writes +
+request serialization/write transport) и 1982 full offline tests прошли
 с session-loop override (40 live deselected). Ruff, strict mypy (31 files),
-wheel/sdist и wheel-only sync/async cheque smoke прошли. Локальный commit —
+wheel/sdist и wheel-only sync/async cheque/Unicode smoke прошли. Локальный commit —
 кандидат для отдельного review координатора; push/live mutations worker не выполняет.
 
 ## Ограничения и ближайшее направление

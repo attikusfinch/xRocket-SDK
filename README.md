@@ -98,6 +98,8 @@ print(address.address, address.expires_at, address.min_amount)
 Все request DTO доступны из `xrocket.pay` и `xrocket.pay.models`, extra fields запрещены.
 Password хранится как SecretStr: repr и обычные dumps маскируют значение; исходное
 значение попадает только в подготовленный HTTP body. Не записывайте этот body в логи.
+Surrogate code points в request строках/ключах отвергаются до I/O общим ValueError
+без JSON/password в исключении; обычный Unicode и emoji поддерживаются.
 `cheques.update(request=ChequeUpdateRequest(description=""), cheque_id=...)` очищает
 описание; omission оставляет его без изменения, explicit None запрещён.
 Update поддерживает только description. Update/delete требуют ID длиной 1–100,

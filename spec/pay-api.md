@@ -314,6 +314,11 @@ Request serializer явно раскрывает SecretStr только чере
 в outbound JSON bytes. Эти байты и произвольный raw server problem являются
 явно доступными данными: вызывающий код не должен журналировать их с секретами.
 SDK body не журналирует; сообщения HTTP/timeout/response ошибок остаются общими.
+При подготовке request строки и ключи проверяются на surrogate code points
+U+D800–U+DFFF. Они отвергаются generic ValueError до создания JSON text и I/O,
+включая password и callback payload. Это SDK Unicode/encoding policy: исключение
+не содержит JSON/password в args/object/cause/context. Нормальный Unicode,
+включая emoji/astral symbols, сохраняет точный UTF-8 wire format.
 
 ### `cheques.update(request=ChequeUpdateRequest(...), cheque_id=None, client_cheque_id=None)`
 

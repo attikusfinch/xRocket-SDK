@@ -96,6 +96,11 @@ DTO готовит требуемое wire значение явно. Вложе
 Обязательные validated fields не могут исчезнуть при exclude_unset даже после
 model_construct с вручную заданным fields_set; они помечаются на нормализованной
 копии, optional omission и исходный объект сохраняются.
+Строки и ключи request graph должны состоять из Unicode scalar values:
+surrogate code points U+D800–U+DFFF отвергаются общим ValueError до создания
+JSON text и I/O, также после продуктовых field serializers. Так UTF-8 encoding
+не создаёт исключение, сохраняющее весь JSON с раскрытыми wire secrets.
+Обычный Unicode, включая astral symbols, сохраняется без ASCII escaping.
 
 InvoiceCreateRequest и вложенные Callback/URL/CustomerRequest — отдельные Pay
 request models со strict типами и camelCase aliases. Только price_currency

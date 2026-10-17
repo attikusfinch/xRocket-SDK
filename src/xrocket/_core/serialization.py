@@ -38,6 +38,10 @@ class RequestModel(BaseModel):
 
 
 def _check_request_values(value: object, active: set[int]) -> None:
+    # Reject invalid Unicode before creating JSON text. An encoding exception
+    # would retain that entire text, including any intentionally revealed secret.
+    if isinstance(value, str) and any(0xD800 <= ord(char) <= 0xDFFF for char in value):
+        raise ValueError("Request strings must not contain surrogate code points")
     if isinstance(value, BaseModel) and not isinstance(value, RequestModel):
         raise TypeError("Request payloads must not contain response models")
     if isinstance(value, (set, frozenset)):
@@ -54,7 +58,7 @@ def _check_request_values(value: object, active: set[int]) -> None:
     elif isinstance(value, dict):
         if any(not isinstance(key, str) for key in value):
             raise TypeError("Request JSON object keys must be strings")
-        children = list(value.values())
+        children = [*value.keys(), *value.values()]
     elif isinstance(value, (list, tuple)):
         children = list(value)
     elif value is None or isinstance(value, (str, bool, int, float, Decimal, SecretStr)):

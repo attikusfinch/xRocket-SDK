@@ -45,6 +45,39 @@ def test_secret_values_stay_masked_without_an_explicit_product_wire_serializer()
     assert secret.get_secret_value() == "synthetic-secret-marker"
 
 
+@pytest.mark.parametrize("codepoint", [0xD800, 0xDBFF, 0xDC00, 0xDFFF])
+@pytest.mark.parametrize("location", ["value", "key", "serialized"])
+def test_surrogates_are_rejected_without_an_encoding_exception(
+    codepoint: int, location: str
+) -> None:
+    invalid = chr(codepoint)
+
+    class SerializedRequest(RequestModel):
+        payload: str
+
+        @field_serializer("payload")
+        def serialize_payload(self, value: str) -> str:
+            return invalid
+
+    if location == "serialized":
+        request = SerializedRequest(payload="valid")
+    else:
+        request = PayloadRequest(payload={invalid: "valid"} if location == "key" else [invalid])
+    with pytest.raises(ValueError, match="surrogate code points") as caught:
+        serialize_request(request)
+    assert type(caught.value) is ValueError
+    assert caught.value.args == ("Request strings must not contain surrogate code points",)
+    assert caught.value.__context__ is None
+    assert caught.value.__cause__ is None
+
+
+def test_unicode_scalar_keys_and_values_keep_exact_utf8_wire_bytes() -> None:
+    text = "Привет 🎁 🚀 𐀀 \uffff"
+    serialized = serialize_request(PayloadRequest(payload={text: [text]}))
+    assert text.encode("utf-8") in serialized
+    assert json.loads(serialized) == {"payload": {text: [text]}}
+
+
 @pytest.mark.parametrize(
     "value",
     [
