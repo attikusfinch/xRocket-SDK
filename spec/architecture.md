@@ -27,6 +27,7 @@ src/xrocket/
       health.py          # Health / HealthComponent
       rates.py           # Rate
       withdrawals.py     # Withdrawal / WithdrawalCallback / WithdrawalQuotas
+      withdrawal_requests.py # отдельные WithdrawalCreateRequest / WithdrawalCallbackRequest
       invoices.py        # Invoice и вложенные response DTO
       invoice_payments.py # платежи invoice, transaction types и отдельная page
       invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
@@ -135,6 +136,13 @@ Correlation поля/IDs, порядок и дубликаты ответа со
 соответствие request не предполагается. SDK не угадывает batch limit500 по
 ошибочному object maxLength и делает ровно один POST без splitting/replay/retry.
 
+Withdrawal create использует отдельные WithdrawalCreateRequest/WithdrawalCallbackRequest
+и существующий Withdrawal только на HTTP200. Client ID обязателен и принадлежит
+caller: max150 в create сохраняется отдельно от GET1–100, без усечения/генерации
+и обещания lookup по длинному ID (PAY-016). Network обязателен, адрес/asset/comment
+не нормализуются, RequestMoney не округляется. Timeout оставляет неизвестный исход
+после одной HTTP попытки; retry/lookup/polling не добавлены.
+
 `SyncTransport.request()` / `AsyncTransport.request()` принимают GET/POST/PUT/DELETE,
 явный tuple success_statuses и response adapter: TypeAdapter означает JSON decode,
 None означает строго пустой body. Неожиданный 2xx вызывает ResponseValidationError,
@@ -166,7 +174,9 @@ timeout задаётся явно и при внедрённой сессии. �
 read-only GET может повторяться с ограниченным backoff/jitter; денежные записи
 требуют подтверждённого серверного контракта идемпотентности. Сам факт наличия
 `clientPayoutId` не доказывает безопасный повтор любого запроса. После timeout
-write-запроса результат может быть неизвестен; его нужно сверять по клиентскому ID.
+write-запроса результат может быть неизвестен; сверка по сохранённому ID — отдельный
+lookup в пределах GET bounds. Для withdrawal client ID длиной 101–150 такой lookup
+недоступен (PAY-016); SDK не запускает его автоматически.
 
 ## Типы и ошибки
 

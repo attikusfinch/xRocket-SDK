@@ -41,6 +41,7 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.payouts.retrieve(payout_id=..., client_payout_id=...)` | `GET /api/v1/payout` |
 | `pay.payouts.create(request=PayoutCreateRequest(...))` | `POST /api/v1/payouts` |
 | `pay.payouts.create_mass(request=MassPayoutCreateRequest(...))` | `POST /api/v1/mass-payouts` |
+| `pay.withdrawals.create(request=WithdrawalCreateRequest(...))` | `POST /api/v1/withdrawals` |
 | `pay.withdrawals.list(from_date=..., to_date=..., status=..., cursor=..., limit=...)` | `GET /api/v1/withdrawals` |
 | `pay.withdrawals.retrieve(withdrawal_id=..., client_withdrawal_id=...)` | `GET /api/v1/withdrawal` |
 | `pay.withdrawals.quotas(network=..., asset=...)` | `GET /api/v1/withdrawal-quotas` |
@@ -154,6 +155,28 @@ SDK делает один POST без разбиения, параллельны
 неизвестен; сверяйте его отдельно по сохранённому ID. Не повторяйте весь batch
 по факту частичной ошибки; безопасная семантика replay не подтверждена live.
 
+`withdrawals.create()` принимает отдельный `WithdrawalCreateRequest`: обязательны
+`client_withdrawal_id` (до 150 символов), `network` (`TON`, `BSC`, `ETH`, `BTC`,
+`TRX`, `SOL`), `address` (до 100 символов), `asset` и `amount` (Decimal/decimal
+string → точная JSON string). Network задаётся явно, default из OAS не подставляется.
+Необязательны `comment` до 50 символов и `WithdrawalCallbackRequest` с optional
+`callback_url` до 500 символов / `payload` (JSON object). DTO доступны из
+`xrocket.pay` и `xrocket.pay.models`. Пропущенные поля не отправляются, explicit
+None и extra fields запрещены. SDK не нормализует адреса, asset или comment,
+не округляет и не обрезает amount. HTTP 200 возвращает существующий `Withdrawal`;
+асинхронный вызов использует те же аргументы с `await`.
+
+Сохраните стабильный непустой client ID до отправки. SDK требует поле и сохраняет
+значение без генерации, замены или усечения; OAS не задаёт minLength, принятие
+пустой строки сервером не подтверждено. Для последующего lookup по client ID
+выбирайте длину 1–100: create допускает 101–150, но retrieve такой ID отвергнет
+локально (PAY-016). При успешном create можно сохранить `result.withdrawal_id`
+для явного retrieve. После `RequestTimeoutError` итог неизвестен: withdrawal мог
+быть создан, это не подтверждённый отказ перевода. SDK делает ровно одну HTTP
+попытку без retry, lookup или polling. Для сверки используйте отдельный retrieve
+по сохранённому ID в его диапазоне; lookup по длинному client ID не обещается.
+Not-found не доказывает безопасность повтора; дедупликация/replay не подтверждены live.
+
 `withdrawals.list()` возвращает одну `CursorPage[Withdrawal]` с такими же date/cursor/
 limit правилами, как payouts. Фильтр `status` принимает `CREATED`, `COMPLETED`, `FAIL`.
 В ответе status необязателен и допускает неизвестные строки с сохранением регистра.
@@ -172,7 +195,8 @@ P008 добавил внутренний фундамент записи: общ
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
 missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
 P010 — создание invoice payment address, P011 — create/update/delete cheques,
-P012 — создание одиночного payout, P013 — mass payouts с отдельными успехами/ошибками;
+P012 — создание одиночного payout, P013 — mass payouts с отдельными успехами/ошибками,
+P014 — создание withdrawal с обязательным caller ID;
 остальные Pay write методы добавляются отдельными задачами с offline проверками.
 
 ## Установка для разработки

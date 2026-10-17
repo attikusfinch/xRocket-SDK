@@ -310,13 +310,13 @@
     {
       "id": "P014",
       "title": "Создание withdrawal с обязательным client ID",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P008",
         "P006"
       ],
       "card": "tasks/P014.md",
-      "handoff": null,
+      "handoff": "handoffs/P014-01.md",
       "operations": [
         {
           "method": "POST",

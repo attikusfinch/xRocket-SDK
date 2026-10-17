@@ -37,6 +37,8 @@
 
 | D027 | Mass payout — `payouts.create_mass(request=MassPayoutCreateRequest(...))`, asset только на batch, отдельный item DTO с target_type=telegram_user_id по prose/summary PAY-010. PAY-009 object maxLength500 не считается maxItems; локальных batch bounds нет. Exact200 возвращает обязательные списки Payout/MassPayoutError с typed reason и has_errors/is_partial; IDs/порядок/дубликаты сохраняются без positional correlation или replay | Реализовано offline в P013 по Current OAS; другие batch target types, server limit/empty acceptance и атомарность/deduplication не подтверждены live. Один POST без splitting/retry/lookup; [контракт](../spec/pay-api.md), [handoff](handoffs/P013-01.md) |
 
+| D028 | Withdrawal create — отдельные WithdrawalCreateRequest/WithdrawalCallbackRequest и exact200 существующий Withdrawal. Caller ID required/max150 без генерации/замены/усечения; GET bounds1–100 отдельны (PAY-016/017). Required network enum без подстановки default; address100/comment50/callback URL500 строго по schema, без blockchain/monetary нормализации. Timeout оставляет неизвестный исход после одной HTTP попытки без retry/lookup/polling | Реализовано offline в P014 по Current OAS; minLength/monetary bounds не выдумываются, server acceptance/deduplication не подтверждены live. GET guard остаётся локальным; [контракт](../spec/pay-api.md), [handoff](handoffs/P014-01.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

@@ -50,6 +50,8 @@ from .models import (
     UnknownInvoiceTransaction,
     Withdrawal,
     WithdrawalCallback,
+    WithdrawalCallbackRequest,
+    WithdrawalCreateRequest,
     WithdrawalQuotas,
 )
 
@@ -104,5 +106,7 @@ __all__ = [
     "UnknownInvoiceTransaction",
     "Withdrawal",
     "WithdrawalCallback",
+    "WithdrawalCallbackRequest",
+    "WithdrawalCreateRequest",
     "WithdrawalQuotas",
 ]

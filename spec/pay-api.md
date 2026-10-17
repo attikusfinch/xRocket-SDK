@@ -526,6 +526,58 @@ target type остаются строками с поддержкой неизв
 decoder HTTP ошибок без retries. Проверено offline, живые payout records
 в этой задаче не используются.
 
+### `withdrawals.create(request=WithdrawalCreateRequest(...))`
+
+`POST /api/v1/withdrawals` с обязательным JWT; только HTTP **200** с JSON
+возвращает существующий `Withdrawal`. Sync и async используют keyword-only
+`request` и один контракт; async вызывается с `await`. Request/response DTO
+разделены; `WithdrawalCreateRequest` и `WithdrawalCallbackRequest` доступны из
+`xrocket.pay` и `xrocket.pay.models`.
+
+| Python field | Wire field | Контракт request |
+|---|---|---|
+| client_withdrawal_id | clientWithdrawalId | required strict str, maxLength 150; caller-owned |
+| network | network | required TON/BSC/ETH/BTC/TRX/SOL с точным регистром |
+| address | address | required strict str, maxLength 100 |
+| asset | asset | required strict str, без schema maxLength |
+| amount | amount | required finite Decimal/decimal string → точная JSON string |
+| comment | comment | optional strict str, maxLength 50 |
+| callback | callback | optional отдельный WithdrawalCallbackRequest |
+
+`network` остаётся обязательным несмотря на schema default TON. Callback содержит
+optional `callback_url` (wire callbackUrl, strict str/max500) и `payload` (JSON
+object). Prose говорит о max4KB payload, но не задаёт size metric; общий локальный
+лимит байтов/символов не выдумывается. Все optional поля можно опустить,
+explicit None запрещён: nullable в этих schemas нет. Extra fields запрещены.
+
+У client ID/address/asset/comment/callback URL нет schema minLength: пустые строки
+в этих полях не запрещаются локально, их принятие сервером не подтверждено.
+Network ограничен enum, amount должен быть корректной decimal строкой/Decimal.
+Рекомендуется сохранить стабильный непустой
+client ID до отправки. SDK никогда не генерирует, не меняет и не урезает его.
+Адрес, asset и comment сохраняются без trimming, изменения регистра, проверки
+blockchain checksum или придуманного network-specific формата. Нет локального
+positive/minimum/maximum amount или ограничения в 9 знаков: DTO не округляет и
+не обрезает точный amount, monetary limits/валидность адреса остаются серверу.
+
+**PAY-016:** create max150 отличается от retrieve 1–100. SDK не переносит общий
+validator и не обещает lookup по client ID длиной 101–150 (либо пустому).
+Для client-ID lookup выбирайте ID длиной 1–100; после успешного create сохраните
+также `withdrawal_id` из ответа для явного retrieve. **PAY-017** остаётся открытым:
+GET guard — локальная политика, missing-ID ответ и приоритет двух ID неизвестны.
+
+После `RequestTimeoutError` исход неизвестен: withdrawal мог быть создан.
+Делается ровно одна HTTP попытка без автоматического retry, lookup, quotas request
+или blockchain polling. Timeout не доказывает отказ перевода. Явный retrieve
+по сохранённому ID в пределах его GET bounds — отдельное действие; not-found
+не доказывает безопасность replay. Срок/scope дедупликации и поведение повтора
+не подтверждены. Ошибки API не подавляются, неожиданный 2xx/невалидный success
+JSON даёт ResponseValidationError; обе ошибки также не запускают скрытые запросы.
+
+Источники: `#/paths/~1api~1v1~1withdrawals/post`, `WithdrawalCreateRequestDto`,
+`WithdrawalCallbackRequestDto`, `WithdrawalResponseDto`. Проверено только offline;
+реальные withdrawals, принятие граничных значений и идемпотентность не подтверждены.
+
 ### `withdrawals.list(from_date=None, to_date=None, status=None, cursor=None, limit=None)`
 
 `GET /api/v1/withdrawals` с обязательным JWT возвращает одну `CursorPage[Withdrawal]`.
@@ -729,7 +781,7 @@ Webhook реализация — следующий этап после read-onl
 | PAY-014 | `#/paths/~1api~1v1~1invoice/delete/responses/200`, `#/paths/~1api~1v1~1cheques/delete/responses/200` | Нет response content/schema | Не требовать JSON body |
 | PAY-015 | `#/paths/~1api~1v1~1invoices/get/parameters/2`, `#/paths/~1api~1v1~1rates/get/parameters/1` | Array query без explicit style/explode | OAS default repeated keys, подтвердить живым запросом |
 | PAY-016 | `#/components/schemas/WithdrawalCreateRequestDto/properties/clientWithdrawalId/maxLength`, `#/paths/~1api~1v1~1withdrawal/get/parameters/1/schema/maxLength` | Create допускает 150 chars, retrieve только 100 | Не обещать retrieve by client ID для всей create длины; уточнить upstream |
-| PAY-017 | `#/paths/~1api~1v1~1withdrawal/get/parameters`, `#/paths/~1api~1v1~1withdrawal/get/responses` | Оба идентификатора optional; нет документированного missing-identifier 400 | В P006 retrieve требует ID только как локальный SDK guard; upstream поведение без ID/приоритет двух ID не подтверждены. Уточнить до write phase, не утверждать missing-ID 400 |
+| PAY-017 | `#/paths/~1api~1v1~1withdrawal/get/parameters`, `#/paths/~1api~1v1~1withdrawal/get/responses` | Оба идентификатора optional; нет документированного missing-identifier 400 | В P006/P014 retrieve требует ID только как локальный SDK guard; upstream поведение без ID/приоритет двух ID не подтверждены, missing-ID 400 не утверждается. Create не зависит от этих неизвестных деталей GET |
 | PAY-018 | `#/paths/~1health/get/responses/200/content/application~1json/schema` | P007 testnet 2026-10-17: HTTP 200 содержит только `{"status":"ok"}`, OAS требует также info/error/details | P019: missing collections → None (unknown), provided lists сохраняются, explicit null отвергается. Полный OAS response поддержан; [журнал](live-verification.md). Snapshot не менялся |
 
 В PAY-005 перечисленные короткие имена после первого pointer обозначают поля того же `properties`; полный exact pointer для примера: `#/components/schemas/InvoiceBlockchainTransactionDto/properties/receiveAmount`.

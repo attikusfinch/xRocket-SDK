@@ -1,4 +1,4 @@
-"""Explicit withdrawal reads and required network/asset quotas queries."""
+"""Explicit withdrawal creates, reads and required network/asset quotas queries."""
 
 from datetime import datetime
 from typing import Literal
@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Withdrawal, WithdrawalQuotas
+from xrocket.pay.models import CursorPage, Withdrawal, WithdrawalCreateRequest, WithdrawalQuotas
 
 _WITHDRAWAL = TypeAdapter(Withdrawal)
 _PAGE = TypeAdapter(CursorPage[Withdrawal])
@@ -71,6 +71,18 @@ class WithdrawalsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
+    def create(self, *, request: WithdrawalCreateRequest) -> Withdrawal:
+        """Send once; a timeout leaves the withdrawal outcome unknown.
+
+        No retry, lookup or polling is automatic. Create IDs up to 150 characters
+        are preserved, while retrieve accepts only 1–100 (PAY-016).
+        """
+        if not isinstance(request, WithdrawalCreateRequest):
+            raise TypeError("request must be a WithdrawalCreateRequest")
+        return self._transport.request(
+            "POST", "/api/v1/withdrawals", _WITHDRAWAL, success_statuses=(200,), body=request
+        )
+
     def list(
         self,
         *,
@@ -115,6 +127,18 @@ class WithdrawalsResource:
 class AsyncWithdrawalsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    async def create(self, *, request: WithdrawalCreateRequest) -> Withdrawal:
+        """Send once; a timeout leaves the withdrawal outcome unknown.
+
+        No retry, lookup or polling is automatic. Create IDs up to 150 characters
+        are preserved, while retrieve accepts only 1–100 (PAY-016).
+        """
+        if not isinstance(request, WithdrawalCreateRequest):
+            raise TypeError("request must be a WithdrawalCreateRequest")
+        return await self._transport.request(
+            "POST", "/api/v1/withdrawals", _WITHDRAWAL, success_statuses=(200,), body=request
+        )
 
     async def list(
         self,

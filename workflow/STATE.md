@@ -7,9 +7,9 @@
 
 - Python SDK `xrocket-sdk` 0.1.0.dev0, `src` layout, HTTPX/Pydantic, Python 3.11+.
 - `PayClient` / `AsyncPayClient`: app, cheques, currencies, health, rates, invoices,
-  payouts, withdrawals. Реализованы 23 из 25 Current Pay операций:
+  payouts, withdrawals. Реализованы 24 из 25 Current Pay операций:
   все 15 GET, invoice create/delete, создание payment address, cheque create/update/delete
-  и создание одиночного payout/mass payouts.
+  и создание одиночного payout/mass payouts/withdrawal.
 - `health.get()` публичен; invoices поддерживают list/retrieve/payments, cheques
   и payouts — list/retrieve, withdrawals — list/retrieve/quotas.
   Каждый list читает одну страницу. Invoice payments имеют typed transactions
@@ -71,6 +71,13 @@
   не выводятся из ошибочного object maxLength (PAY-009). IDs, порядок/дубликаты
   ответа сохраняются без позиционного matching или генерации/подстановки IDs.
   Нет splitting/fan-out/retry/replay; timeout оставляет исход items неизвестным.
+- P014: `withdrawals.create(request=WithdrawalCreateRequest(...))` делает один POST
+  и возвращает существующий Withdrawal только на 200. Client ID required/max150,
+  caller-owned без генерации/замены/усечения; retrieve отдельно требует 1–100
+  (PAY-016/017). Network enum задаётся явно, address100/comment50/callback URL500
+  соответствуют schema. Деньги точные, address/asset/comment не нормализуются.
+  Omission/null различаются; timeout оставляет неизвестный итог после одной
+  HTTP попытки без retry/lookup/polling, lookup длинного ID не обещается.
 - Current и Legacy OAS с checksum, архитектура, сравнение SDK и контракт Pay.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
@@ -157,9 +164,19 @@ wheel/sdist и wheel-only sync/async mixed batch smoke прошли. Прове�
 Локальный commit — candidate для независимого review координатора;
 push/live batch выплаты worker не выполняет.
 
+P013 затем принята и опубликована координатором до начала P014;
+evidence — [P013-01 review](reviews/P013-01.md).
+
+Задача [P014](handoffs/P014-01.md): 414 целевых и 2474 full offline tests прошли
+с session-loop override (40 live deselected); Ruff, strict mypy (34 files),
+wheel/sdist и wheel-only sync/async withdrawal create smoke прошли. Проверены
+ID150/GET100 без усечения, деньги/Unicode и timeout с ровно одним POST.
+Локальный commit — candidate для независимого review координатора;
+push/live выводы worker не выполняет.
+
 ## Ограничения и ближайшее направление
 
-Pay: остальные write methods и webhook verification/events ещё не реализованы.
+Pay: создание withdrawal link и webhook verification/events ещё не реализованы.
 PAY-008: server acceptance invoice без сумм/open amount не подтверждён, monetary
 bounds не угаданы. Integer num_payments/expires_in — SDK policy при OAS number;
 prose4KB data/payload limit без определённой size metric оставлен серверу.
@@ -177,7 +194,7 @@ Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точн�
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
 PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
 batch target types, атомарность и deduplication/replay semantics live не подтверждены.
-Следующая доступная задача — P014 (withdrawal create);
+Следующая доступная задача — P015 (withdrawal link create);
 она не начата. Продолжение — через `tools/session.py next`,
 чтение её карточки и handoff прямой зависимости по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.
