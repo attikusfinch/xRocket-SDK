@@ -43,6 +43,8 @@
 
 | D030 | Current webhook verifier — отдельная stateless функция в Pay, точные timestamp ASCII bytes + dot + raw body, direct secret str UTF-8/bytes и compare_digest decoded digests. Имена headers case-insensitive, values exact, ASCII digits/leading zeros, v1/64hex; отдельные WebhookError subclasses без входных значений/внутренних chains | Реализовано offline в P016 по сохранённому Current info.description; default ±300000 ms inclusive, nonnegative integer tolerance/clock (zero exact) — явная SDK policy, не upstream guarantee. Не парсит JSON, не хранит delivery IDs; typed events остаются P017. [Контракт](../spec/pay-api.md), [handoff](handoffs/P016-01.md) |
 
+| D031 | Безопасный Current verify_and_decode_webhook сначала вызывает verifier P016 по исходным bytes, затем JSON/typed DTO validation. Invoice tagged variants переиспользуют Pay models/overrides; unknown type/invoice event → явный UnknownWebhook, malformed known → WebhookPayloadError. Raw snapshots доступны явно только после safe path; repr скрыт, errors без чувствительных inputs/chains | Реализовано offline в P017 по сохранённым Current DTO; UTF-8, Decimal numbers, отказ duplicate keys/nonfinite constants — явная SDK policy. Finality только finalized_at, dedupe по delivery id без storage/порядка. Прямые DTO не аутентифицируют данные; [контракт](../spec/pay-api.md), [handoff](handoffs/P017-01.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

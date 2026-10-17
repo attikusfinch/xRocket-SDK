@@ -354,7 +354,7 @@
     {
       "id": "P017",
       "title": "Типизированные webhook events с fallback для неизвестных",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P016",
         "P004",
@@ -362,7 +362,7 @@
         "P006"
       ],
       "card": "tasks/P017.md",
-      "handoff": null,
+      "handoff": "handoffs/P017-01.md",
       "operations": []
     },
     {

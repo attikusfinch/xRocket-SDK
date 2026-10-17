@@ -92,6 +92,13 @@
   настраивается tolerance_ms/целыми тестовыми clock ms; отдельные WebhookError
   subclasses не сохраняют входные значения/внутренние или caller cause/context.
   Повторную delivery внутри окна verifier примет; dedupe остаётся приложению.
+- P017: `verify_and_decode_webhook` вызывает verifier P016 до UTF-8/JSON/DTO parsing.
+  InvoiceWebhook имеет invoice-only/payment variants; ChequeWebhook/PayoutWebhook/
+  WithdrawalWebhook переиспользуют Pay DTO. Unknown type/invoice event сохраняется
+  как UnknownWebhook; malformed authenticated payload — отдельный WebhookPayloadError.
+  Raw bytes/JSON snapshots доступны явно после safe path, обычный repr скрыт;
+  Decimal/aware dates/unknown statuses/fields сохранены. Finality — finalized_at,
+  повторные/out-of-order delivery допускаются, dedupe только приложением по delivery id.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
 - Управляемый цикл: текущий чат-координатор, отдельные workers/reviewers, 5 минут,
@@ -207,9 +214,21 @@ wheel/sdist и wheel-only signing/import smoke прошли. Три незави
 проверены синтетически. Локальный commit — candidate для независимого review
 координатора; worker не выполнял push/live API и не использовал реальные secrets.
 
+P016 затем принята и опубликована координатором до начала P017;
+evidence — [P016-01 review](reviews/P016-01.md).
+
+Задача [P017](handoffs/P017-01.md): 309 целевых (163 events + 146 signatures) и
+2961 full offline tests прошли с session-loop override (40 live deselected).
+Ruff, strict mypy (39 files), wheel/sdist и wheel-only verify/decode smoke прошли.
+Проверены malformed known/unknown fallback, точные деньги/aware dates, snapshots,
+redacted diagnostics и verify-before-parse. Внутренняя проверка закрыла numeric
+timestamp strings и подмену bytes.decode у subclass; regressions включены.
+Локальный commit — candidate для независимого review координатора;
+worker не выполнял push/live API и не использовал реальные secrets/payloads.
+
 ## Ограничения и ближайшее направление
 
-Pay: webhook verification реализована offline; typed events остаются P017.
+Pay: webhook verification и typed events реализованы offline.
 REST операции покрыты offline. Live webhook delivery/signing/retries/clock skew
 не подтверждены; window policy не является upstream гарантией.
 PAY-008: server acceptance invoice без сумм/open amount не подтверждён, monetary
@@ -229,7 +248,7 @@ Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точн�
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
 PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
 batch target types, атомарность и deduplication/replay semantics live не подтверждены.
-Следующая доступная задача — P017 (typed webhook events и unknown fallback);
+Следующая доступная задача — P018 (проверка полноты Pay и перехода к Exchange);
 она не начата. Продолжение — через `tools/session.py next`,
 чтение её карточки и handoffs прямых зависимостей по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.

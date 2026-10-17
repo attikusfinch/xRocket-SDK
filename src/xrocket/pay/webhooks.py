@@ -1,18 +1,30 @@
-"""Stateless Current webhook authentication; no JSON decoding or delivery storage."""
+"""Stateless Current webhook authentication and verified event decoding."""
 
 import hashlib
 import hmac
+import json
 import re
 import time
 from collections.abc import Callable, Mapping
+from copy import deepcopy
 from decimal import Decimal
+from typing import Any
 
 from .errors import (
     WebhookConfigurationError,
     WebhookError,
     WebhookHeaderError,
+    WebhookPayloadError,
     WebhookSignatureError,
     WebhookTimestampError,
+)
+from .models.webhooks import (
+    ChequeWebhook,
+    InvoiceWebhook,
+    PayoutWebhook,
+    UnknownWebhook,
+    WebhookEvent,
+    WithdrawalWebhook,
 )
 
 _SIGNING_HEADERS = frozenset({"signature-timestamp", "signature-version", "signature"})
@@ -158,3 +170,103 @@ def _verify_signature_and_time(
     upper = _decimal_key(str(Decimal(now_ms + tolerance_ms)))
     if not lower <= _decimal_key(timestamp) <= upper:
         raise WebhookTimestampError("Webhook timestamp is outside the permitted window")
+
+
+def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("Duplicate JSON object key")
+        result[key] = value
+    return result
+
+
+def _invalid_json_constant(value: str) -> Any:
+    raise ValueError("Nonfinite JSON constant")
+
+
+def _decode_verified_body(raw_body: bytes) -> WebhookEvent:
+    event: WebhookEvent | None = None
+    snapshot: dict[str, Any] | None = None
+    try:
+        payload = json.loads(
+            raw_body.decode("utf-8"),
+            parse_float=Decimal,
+            parse_constant=_invalid_json_constant,
+            object_pairs_hook=_json_object,
+        )
+        if not isinstance(payload, dict):
+            raise ValueError("Webhook envelope must be an object")
+        snapshot = deepcopy(payload)
+        webhook_type = payload.get("type")
+        if webhook_type == "invoice":
+            data = payload.get("data")
+            if not isinstance(data, dict) or not isinstance(data.get("event"), str):
+                raise ValueError("Invoice webhook requires a string event")
+            if data["event"] in ("invoice_status_changed", "payment_status_changed"):
+                event = InvoiceWebhook.model_validate(payload)
+            else:
+                event = UnknownWebhook.model_validate(payload)
+        elif webhook_type == "cheque":
+            event = ChequeWebhook.model_validate(payload)
+        elif webhook_type == "payout":
+            event = PayoutWebhook.model_validate(payload)
+        elif webhook_type == "withdrawal":
+            event = WithdrawalWebhook.model_validate(payload)
+        else:
+            event = UnknownWebhook.model_validate(payload)
+    except (ValueError, TypeError, ArithmeticError, RecursionError):
+        # JSON/Unicode/Pydantic exceptions can retain full sensitive input. Do not
+        # retain or chain them, even through __context__ with `from None`.
+        pass
+    if event is None or snapshot is None:
+        raise WebhookPayloadError("Authenticated webhook payload did not match the expected schema")
+    event._raw_body = raw_body
+    event._raw_payload = snapshot
+    return event
+
+
+def verify_and_decode_webhook(
+    *,
+    raw_body: bytes,
+    headers: Mapping[str, str],
+    webhook_secret: str | bytes,
+    tolerance_ms: int = 300_000,
+    clock: Callable[[], int] | None = None,
+) -> WebhookEvent:
+    """Verify original bytes through P016, then decode a Current Pay event.
+
+    Authentication and time-window failures keep their WebhookError subclasses.
+    Invalid authenticated JSON/envelopes/known payloads raise WebhookPayloadError.
+    Future type strings or invoice event strings return UnknownWebhook, preserving
+    the payload without inferring a payment outcome. Missing/nonstring invoice
+    event is malformed, not a future event.
+
+    JSON uses UTF-8 and exact Decimal fractional numbers. Duplicate object keys and
+    nonfinite JSON constants are rejected as SDK decoding policy. Envelope dates
+    are aware date-time strings, separate from the signing header timestamp.
+
+    Normal event repr/str are redacted. Explicit raw_body/raw_payload properties
+    expose authenticated snapshots; dumps and nested DTO access can be sensitive.
+    Constructing the public DTOs directly does not authenticate them and does not
+    populate these snapshots. No dedupe, ordering, business processing or I/O is
+    performed: applications dedupe with the top-level delivery id. Payment finality
+    is payment.finalized_at is not None, never a status/event-name inference.
+    """
+    try:
+        verify_webhook_signature(
+            raw_body=raw_body,
+            headers=headers,
+            webhook_secret=webhook_secret,
+            tolerance_ms=tolerance_ms,
+            clock=clock,
+        )
+        # HMAC consumes the bytes buffer. Do not let a bytes subclass override
+        # decode()/__bytes__ and substitute different JSON after authentication.
+        body = raw_body if type(raw_body) is bytes else memoryview(raw_body).tobytes()
+        return _decode_verified_body(body)
+    except WebhookError as error:
+        # Preserve P016's boundary even when called in a sensitive caller handler.
+        error.__context__ = None
+        error.__cause__ = None
+        raise

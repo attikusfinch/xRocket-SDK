@@ -1,0 +1,116 @@
+"""Current webhook DTOs. Constructing a DTO does not authenticate a delivery."""
+
+import re
+from copy import deepcopy
+from datetime import datetime
+from typing import Annotated, Any, Literal
+
+from pydantic import AwareDatetime, BeforeValidator, Field, PrivateAttr, StrictStr, model_validator
+
+from ._base import _ResponseModel
+from .cheques import Cheque
+from .invoice_payments import InvoicePayment
+from .invoices import Invoice
+from .payouts import Payout
+from .withdrawals import Withdrawal
+
+
+def _timestamp_string(value: Any) -> Any:
+    # JSON timestamps follow the date-time string schema, never epoch numbers.
+    # Aware datetime instances remain useful for explicit DTO construction.
+    if not isinstance(value, (str, datetime)):
+        raise ValueError("Webhook timestamp must be a date-time string")
+    if isinstance(value, str) and re.match(r"[0-9]{4}-[0-9]{2}-[0-9]{2}[Tt ]", value) is None:
+        raise ValueError("Webhook timestamp must be a date-time string")
+    return value
+
+
+class _WebhookModel(_ResponseModel):
+    def __repr_args__(self) -> list[tuple[str | None, Any]]:
+        # Suppress every field and extra, including untrusted ids/type/event names.
+        # Both BaseModel.__repr__ and __str__ use this hook.
+        return [("payload", "<redacted>")]
+
+
+class InvoiceStatusChangedWebhookData(_WebhookModel):
+    event: Literal["invoice_status_changed"]
+    invoice: Invoice
+
+
+class PaymentStatusChangedWebhookData(_WebhookModel):
+    event: Literal["payment_status_changed"]
+    invoice: Invoice
+    payment: InvoicePayment
+
+
+class _WebhookEnvelope(_WebhookModel):
+    id: StrictStr
+    timestamp: Annotated[AwareDatetime, BeforeValidator(_timestamp_string)]
+    type: StrictStr
+    _raw_body: bytes | None = PrivateAttr(default=None)
+    _raw_payload: dict[str, Any] | None = PrivateAttr(default=None)
+
+    @property
+    def raw_body(self) -> bytes:
+        """Exact authenticated bytes, available only after verify_and_decode_webhook.
+
+        Explicit access may expose sensitive data. DTO constructors/model_validate
+        never authenticate inputs and cannot populate this private snapshot.
+        """
+        if self._raw_body is None:
+            raise RuntimeError("Raw webhook bytes require verify_and_decode_webhook")
+        return self._raw_body
+
+    @property
+    def raw_payload(self) -> dict[str, Any]:
+        """A separate copy of the authenticated JSON, with exact Decimal numbers.
+
+        This preserves original wire keys, unknown fields and explicit nulls,
+        independently of subsequent DTO mutations. Explicit access is sensitive.
+        """
+        if self._raw_payload is None:
+            raise RuntimeError("Raw webhook payload requires verify_and_decode_webhook")
+        return deepcopy(self._raw_payload)
+
+
+class InvoiceWebhook(_WebhookEnvelope):
+    type: Literal["invoice"]
+    data: Annotated[
+        InvoiceStatusChangedWebhookData | PaymentStatusChangedWebhookData,
+        Field(discriminator="event"),
+    ]
+
+
+class ChequeWebhook(_WebhookEnvelope):
+    type: Literal["cheque"]
+    data: Cheque
+
+
+class PayoutWebhook(_WebhookEnvelope):
+    type: Literal["payout"]
+    data: Payout
+
+
+class WithdrawalWebhook(_WebhookEnvelope):
+    type: Literal["withdrawal"]
+    data: Withdrawal
+
+
+class UnknownWebhook(_WebhookEnvelope):
+    """A future envelope type or invoice event, without financial interpretation."""
+
+    data: Any
+
+    @model_validator(mode="after")
+    def _future_event_only(self) -> "UnknownWebhook":
+        if self.type in ("cheque", "payout", "withdrawal"):
+            raise ValueError("Known webhook types require their typed DTOs")
+        if self.type == "invoice":
+            if not isinstance(self.data, dict) or not isinstance(self.data.get("event"), str):
+                raise ValueError("Invoice webhook requires a string event")
+            if self.data["event"] in ("invoice_status_changed", "payment_status_changed"):
+                raise ValueError("Known invoice events require their typed DTOs")
+        return self
+
+
+WebhookEvent = InvoiceWebhook | ChequeWebhook | PayoutWebhook | WithdrawalWebhook | UnknownWebhook

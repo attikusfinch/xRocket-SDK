@@ -207,7 +207,7 @@ HTTP 200 возвращает `WithdrawalLink` с необязательными
 HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `retry_after`;
 последние два поля могут отсутствовать, серверный контракт их не гарантирует.
 Автоповторов нет. Все 25 Current Pay REST операций реализованы. Stateless проверка
-Current webhook доступна отдельно от клиентов; typed events планируются в P017.
+Current webhook доступна отдельно от клиентов, включая typed events и unknown fallback.
 Пакет `xrocket.exchange` зарезервирован без клиента.
 
 ```python
@@ -229,7 +229,7 @@ else:
 ```
 
 Подпись — Current HMAC-SHA256 от точных ASCII bytes `Signature-Timestamp`, точки
-и исходного body. SDK не декодирует/не пересериализует JSON. Secret str кодируется
+и исходного body. Verifier не декодирует/не пересериализует JSON. Secret str кодируется
 UTF-8 без trimming/hash, bytes используются без изменения; пустой secret запрещён.
 Имена заголовков нечувствительны к регистру; значения не нормализуются. Timestamp —
 непустые ASCII digits в ms (ведущие нули сохраняются в подписи), version — ровно `v1`,
@@ -247,7 +247,57 @@ SDK, не гарантия API о clock skew или retries. Stateless verifier 
 форматирование ошибки не раскрывает secret/body; сторонний сбор traceback locals
 или явное логирование аргументов остаётся ответственностью приложения.
 Повторный валидный webhook внутри окна снова пройдёт проверку; dedupe по delivery
-`id`, JSON/event parsing и HTTP server остаются приложению/следующей задаче.
+`id` и HTTP server остаются приложению. Для typed parsing доступен безопасный путь ниже.
+
+Для типизированного разбора используйте `verify_and_decode_webhook`: он вызывает
+тот же verifier **до** UTF-8/JSON parsing и проверки DTO. После успешной подписи
+невалидный payload даёт отдельный `WebhookPayloadError`; неизвестная строка type
+или invoice event возвращает `UnknownWebhook` с доступным raw payload.
+
+```python
+from xrocket.pay import (
+    InvoiceWebhook,
+    PaymentStatusChangedWebhookData,
+    UnknownWebhook,
+    WebhookPayloadError,
+    verify_and_decode_webhook,
+)
+
+try:
+    delivery = verify_and_decode_webhook(
+        raw_body=raw_body, headers=headers, webhook_secret=webhook_secret,
+    )
+except WebhookPayloadError:
+    ...  # Подпись и окно проверены, но JSON/известный payload повреждён.
+else:
+    delivery_id = delivery.id  # Ключ dedupe приложения, не invoice.id/payment.id.
+    if isinstance(delivery, UnknownWebhook):
+        original_payload = delivery.raw_payload  # Явный доступ; может быть чувствительным.
+    elif isinstance(delivery, InvoiceWebhook):
+        if isinstance(delivery.data, PaymentStatusChangedWebhookData):
+            payment = delivery.data.payment
+            is_final = payment.finalized_at is not None
+            # status сохраняется точно; неизвестный status не означает paid/failed.
+```
+
+Ошибки подписи/headers/окна/config остаются прежними `WebhookError` subclasses.
+Invoice-only `InvoiceStatusChangedWebhookData` не требует payment. `ChequeWebhook`,
+`PayoutWebhook`, `WithdrawalWebhook` содержат в data существующие Pay DTO.
+Все envelope и invoice data DTO, `UnknownWebhook`, union `WebhookEvent` доступны
+через `xrocket.pay` и `xrocket.pay.models`. Поля/статусы будущих версий сохраняются.
+Envelope timestamp — aware datetime из JSON date-time string; signing timestamp
+в заголовке проверяется отдельно. JSON fractional numbers разбираются как Decimal
+без float; duplicate object keys и NaN/Infinity отвергаются политикой SDK.
+
+`raw_body` возвращает исходные проверенные bytes, `raw_payload` — отдельную копию
+JSON snapshot с исходными wire keys и Decimal. Мутации DTO не меняют snapshot.
+Обычные repr/str envelope и invoice data скрывают все поля/extras; явные dumps,
+raw свойства и доступ к вложенным REST DTO могут раскрыть чувствительные данные.
+Ошибки безопасного пути не содержат body/secret в messages/args/cause/context.
+Прямые DTO constructors/model_validate **не проверяют подпись** и не заполняют
+raw snapshots; попытка прочитать их raw свойства даёт RuntimeError.
+Повторные/out-of-order доставки допускаются: SDK не хранит delivery IDs и не
+обещает порядок. Dedupe storage и HTTP server остаются приложению.
 
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,

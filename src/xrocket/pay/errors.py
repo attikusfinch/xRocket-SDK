@@ -21,3 +21,7 @@ class WebhookSignatureError(WebhookError):
 
 class WebhookTimestampError(WebhookError):
     """An authenticated delivery is outside the configured time window."""
+
+
+class WebhookPayloadError(WebhookError):
+    """Authenticated bytes contain invalid JSON or a malformed Current payload."""

@@ -850,9 +850,49 @@ Payment finality определяется `payment.finalizedAt != null`. `Invoic
 
 Источники: `#/info/description`, `#/components/schemas/InvoiceWebhookDto`, `#/components/schemas/InvoiceStatusChangedWebhookDataDto`, `#/components/schemas/PaymentStatusChangedWebhookDataDto`, `#/components/schemas/ChequeWebhookDto`, `#/components/schemas/PayoutWebhookDto`, `#/components/schemas/WithdrawalWebhookDto`.
 
-P016 реализует только проверку подписи/окна по synthetic offline fixtures.
-Typed events и unknown fallback остаются P017, dedupe storage/framework server —
-ответственностью приложения; live signing/delivery/retry behavior не подтверждены.
+P017 добавляет `verify_and_decode_webhook` с теми же keyword-only inputs и политикой
+подписи/окна P016. Вызов verifier по исходным bytes предшествует UTF-8 decoding,
+JSON parsing и валидации DTO. Прежний stateless verifier API сохранён. После
+успешной подписи malformed JSON/envelope/known payload даёт `WebhookPayloadError`,
+отличимый от Signature/Header/Timestamp/ConfigurationError. Все эти ошибки —
+WebhookError, diagnostics/messages/args/cause/context не сохраняют входные данные
+или исходные JSON/Unicode/Pydantic exceptions, включая ambient caller exception.
+
+Result — union `WebhookEvent`: `InvoiceWebhook`, `ChequeWebhook`, `PayoutWebhook`,
+`WithdrawalWebhook`, `UnknownWebhook`. Envelope id/type — строки, timestamp —
+aware date-time из JSON string, data обязателен. InvoiceWebhook.data — tagged
+union `InvoiceStatusChangedWebhookData` / `PaymentStatusChangedWebhookData`.
+Остальные известные data — прямо Cheque/Payout/Withdrawal без event wrapper.
+Invoice/InvoicePayment/transaction models переиспользованы с PAY-004–007/011;
+payment.id optional, finality только `finalized_at is not None`, nullable pending
+transaction fields и unknown statuses/types сохраняются. Helpers paid/failed нет.
+
+Точные type strings invoice/cheque/payout/withdrawal используются для dispatch
+по schema names/examples. Неизвестная строка envelope type или invoice event
+возвращает UnknownWebhook; его data остаётся raw JSON без финансовой интерпретации
+и без валидации будущего вложенного контракта. Для unknown envelope type data
+допускает любое JSON value, включая null/array/scalar. Для type invoice data
+обязан быть object с event:str даже при неизвестном event. Missing/nonstring
+type/event и malformed known DTO не маскируются fallback. Required envelope
+проверяется и для fallback, unknown поля сохраняются на всех известных уровнях.
+
+Политика JSON decoder: UTF-8, fractional numbers → точный Decimal, целые → int;
+нечисловые JSON constants NaN/Infinity и duplicate object keys отвергаются, чтобы
+не допустить неоднозначного payload. Envelope timestamp отделён от signing
+header timestamp; порядок/свежесть финансового события по нему не гарантируются.
+Snapshot исходных bytes доступен через `event.raw_body`, отдельная копия JSON
+с wire keys/nulls/Decimal — `event.raw_payload`. Они устанавливаются только
+безопасным verify/decode путём и не меняются при мутации DTO. Обычные repr/str
+envelope/invoice data DTO скрывают все поля/extras. Explicit dumps/raw/nested
+REST DTO access могут раскрыть чувствительные данные; traceback locals и явное
+логирование входов по-прежнему вне гарантии. Прямые public DTO constructors/
+model_validate не аутентифицируют данные и не заполняют raw snapshots, raw
+properties у такого DTO поднимают RuntimeError. Отдельного public parse API нет.
+
+Реализация/проверки P016/P017 — synthetic offline fixtures; live signing/delivery/
+retry behavior не подтверждены. Повторные и out-of-order доставки декодируются
+независимо; dedupe по верхнему delivery id, storage/framework server и business
+processing остаются ответственностью приложения.
 
 ## 9. Known schema defects и неоднозначности
 
