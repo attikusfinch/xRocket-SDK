@@ -17,11 +17,19 @@ from .invoice_payments import (
 )
 from .invoice_requests import (
     InvoiceCallbackRequest,
+    InvoiceCreatePaymentAddressRequest,
     InvoiceCreateRequest,
     InvoiceCustomerRequest,
     InvoiceURLRequest,
 )
-from .invoices import Invoice, InvoiceCallback, InvoiceCustomer, InvoiceLinks, InvoiceURL
+from .invoices import (
+    Invoice,
+    InvoiceCallback,
+    InvoiceCustomer,
+    InvoiceLinks,
+    InvoicePaymentAddress,
+    InvoiceURL,
+)
 from .pagination import CursorPage, CursorPagination
 from .payouts import Payout, PayoutCallback
 from .rates import Rate
@@ -46,12 +54,14 @@ __all__ = [
     "InvoiceBlockchainTransaction",
     "InvoiceCallback",
     "InvoiceCallbackRequest",
+    "InvoiceCreatePaymentAddressRequest",
     "InvoiceCreateRequest",
     "InvoiceCustomer",
     "InvoiceCustomerRequest",
     "InvoiceInternalTransaction",
     "InvoiceLinks",
     "InvoicePayment",
+    "InvoicePaymentAddress",
     "InvoicePaymentPage",
     "InvoicePaymentPagination",
     "InvoicePaymentPayer",

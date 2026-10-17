@@ -1,13 +1,21 @@
-"""Explicit invoice reads and request-backed creation and deletion."""
+"""Explicit invoice reads and request-backed invoice and payment-address writes."""
 
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Invoice, InvoiceCreateRequest, InvoicePaymentPage
+from xrocket.pay.models import (
+    CursorPage,
+    Invoice,
+    InvoiceCreatePaymentAddressRequest,
+    InvoiceCreateRequest,
+    InvoicePaymentAddress,
+    InvoicePaymentPage,
+)
 
 _INVOICE = TypeAdapter(Invoice)
 _PAGE = TypeAdapter(CursorPage[Invoice])
 _PAYMENTS_PAGE = TypeAdapter(InvoicePaymentPage)
+_PAYMENT_ADDRESS = TypeAdapter(InvoicePaymentAddress)
 
 
 def _validate_limit(limit: int | None) -> None:
@@ -80,6 +88,25 @@ class InvoicesResource:
             "POST", "/api/v1/invoices", _INVOICE, success_statuses=(200,), body=request
         )
 
+    def create_payment_address(
+        self,
+        *,
+        request: InvoiceCreatePaymentAddressRequest,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+    ) -> InvoicePaymentAddress:
+        """Create an address for either invoice ID; no automatic retries."""
+        if not isinstance(request, InvoiceCreatePaymentAddressRequest):
+            raise TypeError("request must be an InvoiceCreatePaymentAddressRequest")
+        return self._transport.request(
+            "POST",
+            "/api/v1/invoices/payments/address",
+            _PAYMENT_ADDRESS,
+            success_statuses=(201,),
+            params=_retrieve_params(invoice_id, client_invoice_id),
+            body=request,
+        )
+
     def delete(
         self,
         *,
@@ -148,6 +175,25 @@ class AsyncInvoicesResource:
             raise TypeError("request must be an InvoiceCreateRequest")
         return await self._transport.request(
             "POST", "/api/v1/invoices", _INVOICE, success_statuses=(200,), body=request
+        )
+
+    async def create_payment_address(
+        self,
+        *,
+        request: InvoiceCreatePaymentAddressRequest,
+        invoice_id: str | None = None,
+        client_invoice_id: str | None = None,
+    ) -> InvoicePaymentAddress:
+        """Create an address for either invoice ID; no automatic retries."""
+        if not isinstance(request, InvoiceCreatePaymentAddressRequest):
+            raise TypeError("request must be an InvoiceCreatePaymentAddressRequest")
+        return await self._transport.request(
+            "POST",
+            "/api/v1/invoices/payments/address",
+            _PAYMENT_ADDRESS,
+            success_statuses=(201,),
+            params=_retrieve_params(invoice_id, client_invoice_id),
+            body=request,
         )
 
     async def delete(

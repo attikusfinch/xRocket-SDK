@@ -236,12 +236,12 @@
     {
       "id": "P010",
       "title": "Создание payment address для invoice",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P009"
       ],
       "card": "tasks/P010.md",
-      "handoff": null,
+      "handoff": "handoffs/P010-01.md",
       "operations": [
         {
           "method": "POST",

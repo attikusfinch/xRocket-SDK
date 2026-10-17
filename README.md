@@ -31,6 +31,7 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.invoices.create(request=InvoiceCreateRequest(...))` | `POST /api/v1/invoices` |
 | `pay.invoices.delete(invoice_id=..., client_invoice_id=...)` | `DELETE /api/v1/invoice` |
 | `pay.invoices.payments(invoice_id=..., client_invoice_id=..., cursor=..., limit=...)` | `GET /api/v1/invoice/payments` |
+| `pay.invoices.create_payment_address(request=InvoiceCreatePaymentAddressRequest(...), invoice_id=...)` | `POST /api/v1/invoices/payments/address` |
 | `pay.cheques.list(...)` | `GET /api/v1/cheques` |
 | `pay.cheques.retrieve(cheque_id=..., client_cheque_id=...)` | `GET /api/v1/cheque` |
 | `pay.payouts.list(from_date=..., to_date=..., cursor=..., limit=...)` | `GET /api/v1/payouts` |
@@ -61,6 +62,25 @@ Status-only ответ также поддерживается: отсутств
 `invoices.delete()` требует хотя бы один непустой строковый ID до 100 символов,
 передаёт оба при наличии и возвращает None на пустой HTTP 200. Create client ID
 не ограничен этими 100 символами. Live mutations в проверках проекта не выполнялись.
+`invoices.create_payment_address()` принимает `InvoiceCreatePaymentAddressRequest`
+с обязательным `pay_network` (`TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`). Один или оба
+ID длиной 1–100 передаются в query; body содержит только `payNetwork`.
+Только HTTP 201 возвращает `InvoicePaymentAddress`: адрес, валюту, сеть и обязательный
+`expires_at` с часовым поясом. Необязательный `min_amount` читается как Decimal;
+при отсутствии равен None, явный null отвергается. Неизвестные response поля/сети
+сохраняются. Async-вызов использует те же аргументы с `await`.
+
+```python
+from xrocket.pay import InvoiceCreatePaymentAddressRequest
+
+# Uses an existing authenticated PayClient and an existing invoice ID.
+address = pay.invoices.create_payment_address(
+    invoice_id="existing-invoice-id",
+    request=InvoiceCreatePaymentAddressRequest(pay_network="TON"),
+)
+print(address.address, address.expires_at, address.min_amount)
+```
+
 `cheques.list()` возвращает `CursorPage[Cheque]` и принимает `from_date` / `to_date`
 как datetime с часовым поясом, парные `target_type` / `target`, `state`, `cursor`
 и целочисленный `limit` от 1 до 1000. Даты передаются в ISO 8601 с исходным offset.
@@ -91,7 +111,8 @@ HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `re
 
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
-missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice;
+missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
+P010 — создание invoice payment address;
 остальные Pay write методы добавляются отдельными задачами с offline проверками.
 
 ## Установка для разработки

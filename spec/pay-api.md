@@ -83,7 +83,8 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 ## 4. Поддерживаемые методы SDK
 
 Read-only методы проверяют общий transport, auth, сериализацию параметров, ошибки
-и модели. Invoice create/delete добавлены P009 поверх request foundation P008;
+и модели. Invoice create/delete добавлены P009, payment address — P010
+поверх request foundation P008;
 их реализация и проверка offline не означают запуск реальных мутаций.
 
 ### `health.get()`
@@ -187,6 +188,46 @@ JSON/whitespace body или иной 2xx отвергается как ResponseV
 Источники обоих write methods: точные POST/DELETE, InvoiceCreateRequestDto,
 InvoiceCallbackRequestDto, InvoiceUrlRequestDto, InvoiceCustomerRequestDto.
 Все подтверждения P009 offline; live create/delete не запускались.
+
+### `invoices.create_payment_address(request=..., invoice_id=None, client_invoice_id=None)`
+
+`POST /api/v1/invoices/payments/address`, обязательный JWT. Публичное имя одинаково
+у sync/async invoice resource; все аргументы keyword-only. Отдельный
+`InvoiceCreatePaymentAddressRequest` содержит только обязательный `pay_network`:
+request enum `TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`. Wire alias — `payNetwork`,
+типы strict, extra fields и explicit None запрещены. Resource принимает только
+этот DTO; raw dict/response/InvoiceCreateRequest автоматически не преобразует.
+Оба новых класса экспортированы из `xrocket.pay` и `xrocket.pay.models`.
+
+Query `invoiceId` / `clientInvoiceId` используют прежний invoice identifier helper:
+хотя бы один непустой str длиной 1–100; значения сохраняются буквально, оба при
+наличии передаются в query. По OAS сервер выбирает invoiceId при двух ID.
+Идентификаторы не попадают в JSON body; payNetwork не попадает в query.
+
+Только HTTP **201** с JSON декодируется в `InvoicePaymentAddress`:
+
+| Python поле | Wire alias | Контракт |
+|---|---|---|
+| address | address | required str |
+| pay_currency | payCurrency | required str |
+| pay_network | payNetwork | required open str, неизвестная сеть сохраняется |
+| expires_at | expiresAt | required aware datetime, OAS string/date-time |
+| min_amount | minAmount | optional Money → Decimal, без округления |
+
+У этого expiresAt корректный OAS string/date-time, nullable отсутствует.
+PAY-003 относится только к InvoiceDto.expiresAt и сюда не переносится:
+missing/null/naive date-time отвергаются. MinAmount при omission равен None,
+при наличии обязан быть суммой; explicit null отвергается по non-nullable OAS.
+Для roundtrip с omission используйте `model_dump(exclude_unset=True)`.
+Unknown response fields сохраняются. Иной 2xx, пустой/malformed JSON или
+повреждённый response дают ResponseValidationError. HTTP 400/401/403/404/429/500
+и прочие non-2xx проходят общий HTTP problem decoder с metadata.
+Метод делает одну попытку без retries/redirects, не выполняет оплату на адрес.
+
+Источники: `#/paths/~1api~1v1~1invoices~1payments~1address/post`,
+`#/components/schemas/InvoiceCreatePaymentAddressRequestDto`,
+`#/components/schemas/InvoicePaymentAddressResponseDto`.
+Подтверждения только offline MockTransport; live address creation не запускался.
 
 ### `invoices.list(...)`
 
@@ -398,7 +439,7 @@ Extra response fields и response BaseModel, включая вложенные p
 Invoice create/delete используют общий core request с явными
 success_statuses и response adapter: TypeAdapter для JSON, None для пустого body.
 Ресурс invoice create выбирает 200, invoice DELETE — 200 с None;
-будущий payment address выберет 201.
+invoice create_payment_address выбирает 201 с JSON.
 Пустой JSON success, malformed JSON, неожиданный 2xx или body при empty policy
 дают ResponseValidationError; non-2xx сохраняет общую HTTP problem classification.
 Это offline foundation, не подтверждение живых write endpoints или идемпотентности.

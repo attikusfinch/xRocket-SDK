@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, field_validator
 
 from ._base import Money, _ResponseModel
 
@@ -46,3 +46,21 @@ class Invoice(_ResponseModel):
     callback: InvoiceCallback | None = None
     url: InvoiceURL | None = None
     customer: InvoiceCustomer | None = None
+
+
+class InvoicePaymentAddress(_ResponseModel):
+    """Created deposit address and its expiry, with an optional exact minimum."""
+
+    address: str
+    pay_currency: str
+    pay_network: str
+    expires_at: AwareDatetime
+    min_amount: Money | None = None
+
+    @field_validator("min_amount")
+    @classmethod
+    def _present_minimum(cls, value: Money | None) -> Money:
+        # OAS allows omission, but does not declare this field nullable.
+        if value is None:
+            raise ValueError("Present minAmount must be an amount, not null")
+        return value

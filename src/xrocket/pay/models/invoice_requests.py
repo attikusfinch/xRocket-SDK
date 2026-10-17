@@ -1,6 +1,6 @@
-"""Explicit request DTOs for creating Current Pay invoices."""
+"""Explicit request DTOs for Current Pay invoices and their payment addresses."""
 
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.alias_generators import to_camel
@@ -71,3 +71,12 @@ class InvoiceCreateRequest(_InvoiceRequestModel):
         if self.price_amount is not None and self.min_payment is not None:
             raise ValueError("price_amount and min_payment are mutually exclusive")
         return self
+
+
+class InvoiceCreatePaymentAddressRequest(_InvoiceRequestModel):
+    """Network selection for creating an invoice payment address.
+
+    Invoice identifiers belong to the resource method's query arguments.
+    """
+
+    pay_network: Literal["TON", "BSC", "ETH", "BTC", "TRX", "SOL"]
