@@ -5,7 +5,7 @@ import hmac
 import json
 import traceback
 from copy import deepcopy
-from datetime import timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -729,3 +729,349 @@ def test_safe_boundary_clears_sensitive_ambient_caller_exception(invalid_signatu
     diagnostic = "".join(traceback.format_exception(error)) + repr(error.args)
     assert PRIVATE_MARKER not in diagnostic
     assert SECRET.decode() not in diagnostic
+
+
+# P017 review correction: date-time wire values in known nested DTOs must not
+# acquire payment finality through the REST models' permissive epoch coercion.
+_NESTED_DATE_CASES = [
+    pytest.param(event_name, "invoice", field, id=f"{event_name}-invoice-{field}")
+    for event_name in ("invoice_status_changed", "payment_status_changed")
+    for field in ("createdAt", "expiresAt")
+] + [
+    pytest.param("payment_status_changed", "payment", "finalizedAt", id="payment-finalizedAt")
+] + [
+    pytest.param("payment_status_changed", kind, field, id=f"{kind}-{field}")
+    for kind in ("internal", "blockchain")
+    for field in ("createdAt", "finalizedAt")
+]
+_OPTIONAL_NESTED_DATE_CASES = [
+    case for case in _NESTED_DATE_CASES if case.values[2] != "createdAt"
+]
+_REQUIRED_NESTED_DATE_CASES = [
+    case for case in _NESTED_DATE_CASES if case.values[2] == "createdAt"
+]
+_DATE_PYTHON_NAMES = {
+    "createdAt": "created_at",
+    "expiresAt": "expires_at",
+    "finalizedAt": "finalized_at",
+}
+
+
+def _nested_date_payload(event_name: str, owner: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    payload = _payment_envelope() if event_name == "payment_status_changed" else _envelope()
+    if owner in ("internal", "blockchain"):
+        transaction = _transaction(owner)
+        payload["data"]["payment"]["transactions"] = [transaction]
+        return payload, transaction
+    return payload, payload["data"][owner]
+
+
+def _nested_date_model(event: Any, owner: str) -> Any:
+    if owner in ("internal", "blockchain"):
+        return event.data.payment.transactions[0]
+    return getattr(event.data, owner)
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        pytest.param(1_800_000_000, id="epoch-seconds-int"),
+        pytest.param(1_800_000_000_123, id="epoch-ms-int"),
+        pytest.param(1_800_000_000.125, id="epoch-float"),
+        pytest.param("1800000000", id="epoch-seconds-string"),
+        pytest.param("1800000000123", id="epoch-ms-string"),
+        pytest.param("1800000000.125", id="epoch-fraction-string"),
+        pytest.param(True, id="bool"),
+        pytest.param("2026-10-18T10:11:12.123456", id="naive-datetime"),
+        pytest.param("not-a-datetime", id="bad-string"),
+    ],
+)
+def test_nested_datetime_correction_rejects_malformed_known_wire_fields(
+    event_name: str, owner: str, field: str, invalid: Any
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target[field] = invalid
+    with pytest.raises(WebhookPayloadError):
+        _decode(payload)
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+@pytest.mark.parametrize(
+    "timestamp",
+    ["2026-10-18T10:11:12Z", SENT_AT, "2026-10-18T10:11:12.987654-03:30"],
+)
+def test_nested_datetime_correction_preserves_aware_dates_offsets_and_fractions(
+    event_name: str, owner: str, field: str, timestamp: str
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target[field] = timestamp
+    event = _decode(payload)
+    typed = _nested_date_model(event, owner)
+    assert getattr(typed, _DATE_PYTHON_NAMES[field]) == datetime.fromisoformat(timestamp)
+    assert getattr(typed, _DATE_PYTHON_NAMES[field]).isoformat() == datetime.fromisoformat(
+        timestamp
+    ).isoformat()
+    assert event.raw_payload == payload
+
+
+@pytest.mark.parametrize("event_name,owner,field", _OPTIONAL_NESTED_DATE_CASES)
+@pytest.mark.parametrize("mode", ["omitted", "null"])
+def test_nested_datetime_correction_preserves_optional_and_nullable_dates(
+    event_name: str, owner: str, field: str, mode: str
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    if mode == "null":
+        target[field] = None
+    else:
+        target.pop(field, None)
+    event = _decode(payload)
+    typed = _nested_date_model(event, owner)
+    python_name = _DATE_PYTHON_NAMES[field]
+    assert getattr(typed, python_name) is None
+    assert (python_name in typed.model_fields_set) is (mode == "null")
+    assert event.raw_payload == payload
+
+
+@pytest.mark.parametrize("event_name,owner,field", _REQUIRED_NESTED_DATE_CASES)
+@pytest.mark.parametrize("mode", ["omitted", "null"])
+def test_nested_datetime_correction_keeps_required_dates_required(
+    event_name: str, owner: str, field: str, mode: str
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    if mode == "null":
+        target[field] = None
+    else:
+        del target[field]
+    with pytest.raises(WebhookPayloadError):
+        _decode(payload)
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+@pytest.mark.parametrize("invalid", [1_800_000_000, "1800000000.125"])
+def test_nested_datetime_correction_rejects_epoch_through_snake_case_names(
+    event_name: str, owner: str, field: str, invalid: Any
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target.pop(field, None)
+    target[_DATE_PYTHON_NAMES[field]] = invalid
+    with pytest.raises(WebhookPayloadError):
+        _decode(payload)
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+def test_nested_datetime_correction_accepts_aware_snake_case_names(
+    event_name: str, owner: str, field: str
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target.pop(field, None)
+    target[_DATE_PYTHON_NAMES[field]] = SENT_AT
+    event = _decode(payload)
+    typed_timestamp = getattr(_nested_date_model(event, owner), _DATE_PYTHON_NAMES[field])
+    assert typed_timestamp.isoformat() == SENT_AT
+    assert event.raw_payload == payload
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+@pytest.mark.parametrize("valid_alias", [True, False])
+def test_nested_datetime_correction_respects_alias_priority_over_shadow_extra(
+    event_name: str, owner: str, field: str, valid_alias: bool
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target[field] = SENT_AT if valid_alias else 1_800_000_000
+    python_name = _DATE_PYTHON_NAMES[field]
+    target[python_name] = 1_800_000_000 if valid_alias else SENT_AT
+    if not valid_alias:
+        with pytest.raises(WebhookPayloadError):
+            _decode(payload)
+        return
+    event = _decode(payload)
+    typed = _nested_date_model(event, owner)
+    assert getattr(typed, python_name).isoformat() == SENT_AT
+    assert typed.model_extra[python_name] == 1_800_000_000
+    assert event.raw_payload == payload
+
+
+@pytest.mark.parametrize("event_name", ["invoice_status_changed", "payment_status_changed"])
+def test_nested_datetime_correction_leaves_known_payload_extras_uninterpreted(
+    event_name: str,
+) -> None:
+    payload, invoice = _nested_date_payload(event_name, "invoice")
+    raw_dates = {"createdAt": 1_800_000_000, "finalizedAt": "1800000000.125", "expiresAt": False}
+    invoice["futureInvoice"] = deepcopy(raw_dates)
+    invoice["callback"] = {"payload": deepcopy(raw_dates), **raw_dates}
+    invoice["customer"] = deepcopy(raw_dates)
+    invoice["url"] = deepcopy(raw_dates)
+    invoice["links"].update(raw_dates)
+    payload["data"]["futureData"] = deepcopy(raw_dates)
+    payload["futureEnvelope"] = deepcopy(raw_dates)
+    if event_name == "payment_status_changed":
+        payment = payload["data"]["payment"]
+        payment["createdAt"] = 1_800_000_000  # Not an InvoicePaymentDto field.
+        payment["futurePayment"] = deepcopy(raw_dates)
+        transaction = _transaction(
+            "blockchain",
+            payer=deepcopy(raw_dates),
+            futureTransaction=deepcopy(raw_dates),
+            tx={
+                "network": "FUTURE",
+                "txHash": "synthetic",
+                "amount": "1",
+                "currency": "USDT",
+                "status": "pending",
+                **raw_dates,
+            },
+        )
+        payment["transactions"] = [transaction]
+    else:
+        # The invoice-only schema does not declare payment: it remains an extra.
+        payload["data"]["payment"] = deepcopy(raw_dates)
+    event = _decode(payload)
+    assert event.raw_payload == payload
+    assert event.data.invoice.callback.payload == raw_dates
+    assert event.data.invoice.customer.model_extra == raw_dates
+    assert event.data.invoice.links.model_extra == raw_dates
+    if event_name == "payment_status_changed":
+        assert event.data.payment.model_extra["createdAt"] == 1_800_000_000
+        assert event.data.payment.transactions[0].tx.model_extra == raw_dates
+        assert event.data.payment.transactions[0].payer.model_extra == raw_dates
+    else:
+        assert event.data.model_extra["payment"] == raw_dates
+
+
+@pytest.mark.parametrize("fallback", ["future-type", "future-invoice-event", "future-transaction"])
+def test_nested_datetime_correction_does_not_validate_future_raw_contracts(fallback: str) -> None:
+    raw_dates = {"createdAt": 1_800_000_000, "expiresAt": False, "finalizedAt": "1800000000"}
+    if fallback == "future-type":
+        payload = _envelope("future", {"invoice": raw_dates, "payment": raw_dates})
+    elif fallback == "future-invoice-event":
+        payload = _envelope(
+            data={"event": "future", "invoice": raw_dates, "payment": raw_dates}
+        )
+    else:
+        payload = _payment_envelope(transactions=[{"type": "future", **raw_dates}])
+    event = _decode(payload)
+    assert event.raw_payload == payload
+    if fallback == "future-transaction":
+        transaction = event.data.payment.transactions[0]
+        assert isinstance(transaction, UnknownInvoiceTransaction)
+        assert transaction.model_extra == raw_dates
+    else:
+        assert isinstance(event, UnknownWebhook)
+        assert event.data == payload["data"]
+
+
+@pytest.mark.parametrize(
+    "kind,data",
+    [
+        (
+            "cheque",
+            {"chequeId": "synthetic", "asset": "USDT", "links": {}, "deleted": False},
+        ),
+        (
+            "payout",
+            {
+                "payoutId": "synthetic",
+                "target": "synthetic",
+                "targetType": "future",
+                "asset": "USDT",
+                "amount": "1",
+                "status": "future",
+            },
+        ),
+        (
+            "withdrawal",
+            {
+                "withdrawalId": "synthetic",
+                "network": "future",
+                "address": "synthetic",
+                "asset": "USDT",
+                "amount": "1",
+            },
+        ),
+    ],
+)
+def test_nested_datetime_correction_preserves_other_known_dto_date_looking_extras(
+    kind: str, data: dict[str, Any]
+) -> None:
+    raw_dates = {"createdAt": 1_800_000_000, "finalizedAt": "1800000000", "expiresAt": False}
+    data = deepcopy(data) | raw_dates | {"callback": {"payload": deepcopy(raw_dates), **raw_dates}}
+    if kind == "cheque":
+        data["links"] = deepcopy(raw_dates)
+        data["url"] = deepcopy(raw_dates)
+    payload = _envelope(kind, data)
+    event = _decode(payload)
+    assert event.raw_payload == payload
+    assert event.data.callback.payload == raw_dates
+    assert event.data.callback.model_extra == raw_dates
+    for field, value in raw_dates.items():
+        assert event.data.model_extra[field] == value
+    if kind == "cheque":
+        assert event.data.links.model_extra == raw_dates
+        assert event.data.url.model_extra == raw_dates
+
+
+@pytest.mark.parametrize("kind", ["invoice", "payment", "internal", "blockchain"])
+def test_nested_datetime_correction_leaves_standalone_rest_datetime_behavior(kind: str) -> None:
+    # Existing REST DTOs intentionally retain their prior epoch-coercion behavior;
+    # the stricter wire policy belongs to known webhook payloads only.
+    if kind == "invoice":
+        value = Invoice.model_validate(_invoice(createdAt=1_800_000_000, expiresAt="1800000000"))
+        first, second = value.created_at, value.expires_at
+    elif kind == "payment":
+        payment = InvoicePayment.model_validate(_payment(finalizedAt=1_800_000_000))
+        first = second = payment.finalized_at
+    else:
+        model = InvoiceInternalTransaction if kind == "internal" else InvoiceBlockchainTransaction
+        transaction = model.model_validate(
+            _transaction(kind, createdAt=1_800_000_000, finalizedAt="1800000000")
+        )
+        first, second = transaction.created_at, transaction.finalized_at
+    assert first is not None and second is not None
+    assert first.isoformat() == "2027-01-15T08:00:00+00:00"
+    assert second == first
+
+
+@pytest.mark.parametrize("event_name,owner,field", _NESTED_DATE_CASES)
+def test_nested_datetime_correction_keeps_payload_diagnostics_and_ambient_context_safe(
+    event_name: str, owner: str, field: str
+) -> None:
+    payload, target = _nested_date_payload(event_name, owner)
+    target[field] = PRIVATE_MARKER
+    body = _body(payload)
+    try:
+        raise ValueError(PRIVATE_MARKER, SECRET)
+    except ValueError:
+        with pytest.raises(WebhookPayloadError) as caught:
+            _decode(body)
+    error = caught.value
+    diagnostic = " ".join(
+        [
+            str(error),
+            repr(error),
+            repr(error.args),
+            repr(vars(error)),
+            *traceback.format_exception(error),
+        ]
+    )
+    assert PRIVATE_MARKER not in diagnostic
+    assert SECRET.decode() not in diagnostic
+    assert body.decode() not in diagnostic
+    assert error.__cause__ is None
+    assert error.__context__ is None
+
+
+def test_nested_datetime_correction_does_not_validate_before_signature(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _payment_envelope(finalizedAt=1_800_000_000)
+    body = _body(payload)
+    headers = _headers(body)
+    headers["Signature"] = "0" * 64
+
+    def no_dto(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Unauthenticated nested dates reached DTO validation")
+
+    monkeypatch.setattr(InvoiceWebhook, "model_validate", no_dto)
+    with pytest.raises(WebhookSignatureError):
+        _decode(body, headers=headers)

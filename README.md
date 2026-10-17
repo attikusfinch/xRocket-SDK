@@ -286,7 +286,13 @@ Invoice-only `InvoiceStatusChangedWebhookData` не требует payment. `Che
 Все envelope и invoice data DTO, `UnknownWebhook`, union `WebhookEvent` доступны
 через `xrocket.pay` и `xrocket.pay.models`. Поля/статусы будущих версий сохраняются.
 Envelope timestamp — aware datetime из JSON date-time string; signing timestamp
-в заголовке проверяется отдельно. JSON fractional numbers разбираются как Decimal
+в заголовке проверяется отдельно. Известные вложенные даты invoice/payment и
+internal/blockchain transactions также требуют aware date-time strings до
+преобразования в datetime: Unix numbers/numeric strings отвергаются как payload
+error, включая finalizedAt. Nullable pending/omission сохраняются; даты в unknown
+events/types/transactions и произвольных extras/callback payload остаются raw.
+У Current cheque/payout/withdrawal DTO объявленных date-time полей нет.
+JSON fractional numbers разбираются как Decimal
 без float; duplicate object keys и NaN/Infinity отвергаются политикой SDK.
 
 `raw_body` возвращает исходные проверенные bytes, `raw_payload` — отдельную копию

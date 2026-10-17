@@ -99,6 +99,9 @@
   Raw bytes/JSON snapshots доступны явно после safe path, обычный repr скрыт;
   Decimal/aware dates/unknown statuses/fields сохранены. Finality — finalized_at,
   повторные/out-of-order delivery допускаются, dedupe только приложением по delivery id.
+  Correction P017-02 проверяет также все известные вложенные date-time wire
+  поля до coercion: numeric epochs/strings не могут ложно установить finality.
+  REST DTO и date-looking unknown/raw данные не менялись.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
 - Управляемый цикл: текущий чат-координатор, отдельные workers/reviewers, 5 минут,
@@ -225,6 +228,21 @@ redacted diagnostics и verify-before-parse. Внутренняя проверк
 timestamp strings и подмену bytes.decode у subclass; regressions включены.
 Локальный commit — candidate для независимого review координатора;
 worker не выполнял push/live API и не использовал реальные secrets/payloads.
+
+Первый P017 candidate `1808a805e995ac09bddeeeb8e461da1e15e3df4a` получил
+**changes_requested**: [P017-01 review](reviews/P017-01.md). Envelope guard не
+охватывал nested date-time: Pydantic преобразовывал epochs в datetime, включая
+payment.finalizedAt. Прежние passing tests этот дефект не покрывали.
+
+Correction attempt 1 — [P017-02](handoffs/P017-02.md): webhook-only before
+validators проверяют invoice.createdAt/expiresAt, payment.finalizedAt и
+internal/blockchain transaction.createdAt/finalizedAt с alias precedence,
+nullable/omission и пропуском unknown/raw контрактов. У cheque/payout/withdrawal
+Current DTO объявленных дат нет. Добавлены 193 signed regression cases.
+В этой correction-сессии 502 целевых и 3154 full offline tests прошли
+(40 live deselected), Ruff, strict mypy (39 files), build/wheel-only smoke прошли.
+Внутренняя проверка не нашла оставшихся замечаний; локальный correction commit
+ещё требует свежего независимого acceptance review. Push/live не выполнялись.
 
 ## Ограничения и ближайшее направление
 

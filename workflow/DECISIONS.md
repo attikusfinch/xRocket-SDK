@@ -45,6 +45,8 @@
 
 | D031 | Безопасный Current verify_and_decode_webhook сначала вызывает verifier P016 по исходным bytes, затем JSON/typed DTO validation. Invoice tagged variants переиспользуют Pay models/overrides; unknown type/invoice event → явный UnknownWebhook, malformed known → WebhookPayloadError. Raw snapshots доступны явно только после safe path; repr скрыт, errors без чувствительных inputs/chains | Реализовано offline в P017 по сохранённым Current DTO; UTF-8, Decimal numbers, отказ duplicate keys/nonfinite constants — явная SDK policy. Finality только finalized_at, dedupe по delivery id без storage/порядка. Прямые DTO не аутентифицируют данные; [контракт](../spec/pay-api.md), [handoff](handoffs/P017-01.md) |
 
+| D032 | Webhook-only before validators проверяют known nested date-time wire values до REST DTO coercion: invoice created_at/expires_at, payment finalized_at, known internal/blockchain transaction created_at/finalized_at. Alias precedence и nullable/omission сохраняются; unknown/raw поля не обходятся, REST DTO не меняются | P017 correction attempt 1 после P2 nested epoch coercion: [rejected review](reviews/P017-01.md). Реализовано offline, числовые epochs/numeric strings не могут ложно установить finality; Current cheque/payout/withdrawal дат не объявляют. [Контракт](../spec/pay-api.md), [handoff](handoffs/P017-02.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

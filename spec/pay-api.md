@@ -867,6 +867,21 @@ Invoice/InvoicePayment/transaction models переиспользованы с PA
 payment.id optional, finality только `finalized_at is not None`, nullable pending
 transaction fields и unknown statuses/types сохраняются. Helpers paid/failed нет.
 
+До datetime coercion известные вложенные date-time wire fields требуют строку
+с date-time форматом; aware parsing затем выполняет существующий DTO. Numeric
+epochs, numeric strings, bool и другие неверные значения дают WebhookPayloadError,
+в частности не могут сделать payment.finalized_at ложноположительно непустым.
+Покрыты invoice.createdAt/expiresAt в обоих invoice variants, payment.finalizedAt,
+transactions[i].createdAt/finalizedAt для exact internal/blockchain types.
+Nullable pending dates/optional expiresAt и omission остаются допустимыми,
+required createdAt/null по-прежнему отвергаются. Alias precedence совпадает с
+Pay response models: camelCase выбирается первым, snake_case — если alias
+отсутствует; дублирующий snake key при наличии alias остаётся raw extra.
+Cheque/Payout/Withdrawal и их объявленные вложенные DTO в Current OAS date-time
+полей не имеют. Date-looking extras, callback payload, неизвестные transaction
+types и future type/event fallback не проверяются как известные даты.
+Это webhook-only wire guard: public REST DTO и REST decoding не менялись.
+
 Точные type strings invoice/cheque/payout/withdrawal используются для dispatch
 по schema names/examples. Неизвестная строка envelope type или invoice event
 возвращает UnknownWebhook; его data остаётся raw JSON без финансовой интерпретации

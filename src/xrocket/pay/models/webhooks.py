@@ -9,7 +9,7 @@ from pydantic import AwareDatetime, BeforeValidator, Field, PrivateAttr, StrictS
 
 from ._base import _ResponseModel
 from .cheques import Cheque
-from .invoice_payments import InvoicePayment
+from .invoice_payments import InvoiceInternalTransaction, InvoicePayment
 from .invoices import Invoice
 from .payouts import Payout
 from .withdrawals import Withdrawal
@@ -25,6 +25,42 @@ def _timestamp_string(value: Any) -> Any:
     return value
 
 
+def _date_fields(value: Any, model: type[_ResponseModel], names: tuple[str, ...]) -> None:
+    """Guard effective known wire values before REST DTO datetime coercion.
+
+    Alias precedence matches _ResponseModel: a Python-name duplicate beside a
+    wire alias is an extra, so it must remain opaque. Missing/null handling and
+    aware date-time parsing stay with the existing DTO validators.
+    """
+    if isinstance(value, dict):
+        for name in names:
+            alias = model.model_fields[name].alias or name
+            raw_date = value[alias] if alias in value else value.get(name)
+            if raw_date is not None:
+                _timestamp_string(raw_date)
+
+
+def _invoice_dates(value: Any) -> Any:
+    _date_fields(value, Invoice, ("created_at", "expires_at"))
+    return value
+
+
+def _payment_dates(value: Any) -> Any:
+    _date_fields(value, InvoicePayment, ("finalized_at",))
+    if isinstance(value, dict) and isinstance(value.get("transactions"), list):
+        for transaction in value["transactions"]:
+            if isinstance(transaction, dict) and transaction.get("type") in (
+                "internal",
+                "blockchain",
+            ):
+                # Both known transaction DTOs share these fields. Future types
+                # retain raw fields; their date-looking values are not interpreted.
+                _date_fields(
+                    transaction, InvoiceInternalTransaction, ("created_at", "finalized_at")
+                )
+    return value
+
+
 class _WebhookModel(_ResponseModel):
     def __repr_args__(self) -> list[tuple[str | None, Any]]:
         # Suppress every field and extra, including untrusted ids/type/event names.
@@ -34,13 +70,13 @@ class _WebhookModel(_ResponseModel):
 
 class InvoiceStatusChangedWebhookData(_WebhookModel):
     event: Literal["invoice_status_changed"]
-    invoice: Invoice
+    invoice: Annotated[Invoice, BeforeValidator(_invoice_dates)]
 
 
 class PaymentStatusChangedWebhookData(_WebhookModel):
     event: Literal["payment_status_changed"]
-    invoice: Invoice
-    payment: InvoicePayment
+    invoice: Annotated[Invoice, BeforeValidator(_invoice_dates)]
+    payment: Annotated[InvoicePayment, BeforeValidator(_payment_dates)]
 
 
 class _WebhookEnvelope(_WebhookModel):
@@ -82,6 +118,8 @@ class InvoiceWebhook(_WebhookEnvelope):
 
 
 class ChequeWebhook(_WebhookEnvelope):
+    # Current Cheque/Payout/Withdrawal and their declared nested DTOs have no
+    # date-time fields. Date-looking extras/callback payloads remain raw values.
     type: Literal["cheque"]
     data: Cheque
 
