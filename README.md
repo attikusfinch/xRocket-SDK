@@ -206,8 +206,48 @@ HTTP 200 возвращает `WithdrawalLink` с необязательными
 
 HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `retry_after`;
 последние два поля могут отсутствовать, серверный контракт их не гарантирует.
-Автоповторов нет. Все 25 Current Pay REST операций реализованы; webhook
-verification/events пока планируются. Пакет `xrocket.exchange` зарезервирован без клиента.
+Автоповторов нет. Все 25 Current Pay REST операций реализованы. Stateless проверка
+Current webhook доступна отдельно от клиентов; typed events планируются в P017.
+Пакет `xrocket.exchange` зарезервирован без клиента.
+
+```python
+from xrocket.pay import WebhookError, verify_webhook_signature
+
+# raw_body: исходные bytes HTTP запроса; headers: mapping имён/строковых значений.
+# webhook_secret получен отдельно из Webhook Token, это не JWT API token.
+try:
+    verify_webhook_signature(
+        raw_body=raw_body,
+        headers=headers,
+        webhook_secret=webhook_secret,
+        tolerance_ms=300_000,
+    )
+except WebhookError:
+    ...  # Отклонить запрос; JSON и business processing ещё не выполнялись.
+else:
+    ...  # Теперь приложение может разбирать исходный raw_body как JSON.
+```
+
+Подпись — Current HMAC-SHA256 от точных ASCII bytes `Signature-Timestamp`, точки
+и исходного body. SDK не декодирует/не пересериализует JSON. Secret str кодируется
+UTF-8 без trimming/hash, bytes используются без изменения; пустой secret запрещён.
+Имена заголовков нечувствительны к регистру; значения не нормализуются. Timestamp —
+непустые ASCII digits в ms (ведущие нули сохраняются в подписи), version — ровно `v1`,
+signature — 64 hex digits любого регистра. Дубли signing headers отвергаются;
+адаптер HTTP должен сохранять дубли либо отклонять их до превращения в mapping.
+
+По умолчанию допустима разница с часами ±300 000 ms включительно. `tolerance_ms`
+принимает целое ≥0 без bool; 0 требует точного совпадения. `clock=lambda: now_ms`
+позволяет передать тестовые часы (целые неотрицательные Unix ms), по умолчанию
+используются системные часы. Подпись проверяется раньше часов/окна. Окно — политика
+SDK, не гарантия API о clock skew или retries. Stateless verifier возвращает None
+при успехе или поднимает `WebhookError`: `WebhookHeaderError`, `WebhookSignatureError`,
+`WebhookTimestampError`, `WebhookConfigurationError` (доступны из `xrocket.pay`).
+Ошибка не сохраняет входные значения в args/атрибутах/cause/context. Обычное
+форматирование ошибки не раскрывает secret/body; сторонний сбор traceback locals
+или явное логирование аргументов остаётся ответственностью приложения.
+Повторный валидный webhook внутри окна снова пройдёт проверку; dedupe по delivery
+`id`, JSON/event parsing и HTTP server остаются приложению/следующей задаче.
 
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,

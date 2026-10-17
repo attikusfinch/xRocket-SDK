@@ -85,6 +85,13 @@
   unknown response fields сохраняются. Address100/comment50, required network,
   точный amount, optional platform только по указанию xRocket; нет ID/callback.
   SDK возвращает ссылки без открытия, timeout оставляет неизвестный итог одной попытки.
+- P016: `verify_webhook_signature(raw_body=..., headers=..., webhook_secret=...)`
+  в `xrocket.pay` — stateless Current HMAC-SHA256 по точным timestamp/body bytes,
+  direct secret отдельно от JWT, v1 и constant-time comparison. Никакого JSON
+  parsing/Legacy transform. Default окно ±300000 ms inclusive — SDK policy,
+  настраивается tolerance_ms/целыми тестовыми clock ms; отдельные WebhookError
+  subclasses не сохраняют входные значения/внутренние или caller cause/context.
+  Повторную delivery внутри окна verifier примет; dedupe остаётся приложению.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
 - Управляемый цикл: текущий чат-координатор, отдельные workers/reviewers, 5 минут,
@@ -190,9 +197,21 @@ omission ссылок, explicit-null string policy, точная сумма, о�
 ошибки и один POST без followup/retry. Локальный commit — candidate для
 независимого review координатора; worker не выполнял push/live API/переходы по ссылкам.
 
+P015 затем принята и опубликована координатором до начала P016;
+evidence — [P015-01 review](reviews/P015-01.md).
+
+Задача [P016](handoffs/P016-01.md): 146 целевых и 2798 full offline tests прошли
+с session-loop override (40 live deselected); Ruff, strict mypy (38 files),
+wheel/sdist и wheel-only signing/import smoke прошли. Три независимых known-answer
+вектора, raw Unicode/whitespace, malformed headers, time boundaries и redaction
+проверены синтетически. Локальный commit — candidate для независимого review
+координатора; worker не выполнял push/live API и не использовал реальные secrets.
+
 ## Ограничения и ближайшее направление
 
-Pay: webhook verification/events ещё не реализованы; REST операции покрыты offline.
+Pay: webhook verification реализована offline; typed events остаются P017.
+REST операции покрыты offline. Live webhook delivery/signing/retries/clock skew
+не подтверждены; window policy не является upstream гарантией.
 PAY-008: server acceptance invoice без сумм/open amount не подтверждён, monetary
 bounds не угаданы. Integer num_payments/expires_in — SDK policy при OAS number;
 prose4KB data/payload limit без определённой size metric оставлен серверу.
@@ -210,9 +229,9 @@ Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точн�
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
 PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
 batch target types, атомарность и deduplication/replay semantics live не подтверждены.
-Следующая доступная задача — P016 (Current webhook signature verification);
+Следующая доступная задача — P017 (typed webhook events и unknown fallback);
 она не начата. Продолжение — через `tools/session.py next`,
-чтение её карточки и handoff прямой зависимости по обычному протоколу.
+чтение её карточки и handoffs прямых зависимостей по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.
 Write foundation P008 завершён до write ресурсов. Новые API детали
 исследуются в соответствующей карточке, а не угадываются на весь roadmap.

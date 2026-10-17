@@ -798,6 +798,45 @@ Headers:
 
 Проверка допустимой давности delivery — полезная SDK policy с явно настраиваемой tolerance и тестовыми часами; конкретное допустимое окно/расписание retries источник не гарантирует. Нельзя выдать произвольные пять минут за правило API.
 
+Реализован отдельный `xrocket.pay.verify_webhook_signature(*, raw_body: bytes,
+headers: Mapping[str, str], webhook_secret: str | bytes, tolerance_ms: int = 300_000,
+clock: Callable[[], int] | None = None) -> None`. Это stateless local функция,
+общая для sync/async приложений, без клиента, JWT, сети и хранения secret.
+Webhook errors находятся в Pay, наследуются от общего `XRocketError`,
+не являются REST `AuthenticationError` и не добавляют product imports в `_core`.
+
+Политика SDK: `tolerance_ms` — целое ≥0 без bool, default 300000 **ms**;
+допустимы past/future delivery в диапазоне `[now_ms - tolerance_ms,
+now_ms + tolerance_ms]` включительно, с нижней Unix-границей 0. Нулевое окно
+требует точного совпадения. Окно всегда включено; дедупликации оно не заменяет.
+`clock` возвращает целые неотрицательные Unix milliseconds (не seconds/float),
+None использует `time.time_ns() // 1_000_000`. Часы читаются один раз после
+успешного constant-time сравнения. Это не upstream retry/clock-skew guarantee.
+
+Имена трёх signing headers нечувствительны к регистру, значения не trimming/
+normalization. Timestamp принимается как непустой ASCII `[0-9]+`, включая
+ведущие нули: для HMAC используется его **исходное** представление, а не
+`str(int(timestamp))`. Числовое сравнение окна не требует int parsing и не
+раскрывает header через parsing errors, в том числе для длинных значений.
+Version должен быть ровно `v1`; signature — ровно 64 ASCII hex digits,
+регистр hex допускается любой, compare_digest сравнивает два 32-byte digest.
+Дубли signing names (включая разный регистр) и malformed/coalesced значения
+отвергаются. Mapping не может восстановить уже потерянные HTTP-адаптером дубли:
+адаптер обязан сохранить либо отклонить их заранее.
+
+Secret — непустые bytes без изменений либо str с точным UTF-8 encoding,
+без trimming/SHA256/Legacy transform; surrogate code points в str запрещены.
+Body — только bytes, может быть пустым, невалидным JSON или не-UTF8. Verifier
+вообще не парсит JSON; приложение разбирает его только после успеха.
+`WebhookHeaderError` означает missing/malformed/duplicate headers,
+`WebhookSignatureError` — несовпадение HMAC, `WebhookTimestampError` —
+аутентифицированный timestamp вне окна, `WebhookConfigurationError` —
+некорректные локальные аргументы/часы. Все наследуются от `WebhookError`;
+messages/args/structured attributes не содержат secret/body/header values,
+внутренние ошибки преобразования/clock не сохраняются как cause/context.
+Сбор traceback locals сторонними средствами или явное логирование входов
+этой гарантией не покрываются.
+
 Все основные webhook envelope DTO имеют обязательные `id`, `timestamp`, `type`, `data`. `id` delivery предназначен для dedupe и стабилен при повторной доставке. Dedupe storage остаётся ответственностью приложения; stateless подпись не предотвращает повторную обработку валидного webhook.
 
 Invoice `data` различается по `event`:
@@ -811,7 +850,9 @@ Payment finality определяется `payment.finalizedAt != null`. `Invoic
 
 Источники: `#/info/description`, `#/components/schemas/InvoiceWebhookDto`, `#/components/schemas/InvoiceStatusChangedWebhookDataDto`, `#/components/schemas/PaymentStatusChangedWebhookDataDto`, `#/components/schemas/ChequeWebhookDto`, `#/components/schemas/PayoutWebhookDto`, `#/components/schemas/WithdrawalWebhookDto`.
 
-Webhook реализация — следующий этап после read-only среза; signing fixtures можно подготовить без серверного вызова и средств.
+P016 реализует только проверку подписи/окна по synthetic offline fixtures.
+Typed events и unknown fallback остаются P017, dedupe storage/framework server —
+ответственностью приложения; live signing/delivery/retry behavior не подтверждены.
 
 ## 9. Known schema defects и неоднозначности
 

@@ -1,6 +1,13 @@
-"""Current Pay REST SDK."""
+"""Current Pay REST SDK and webhook authentication."""
 
 from .client import AsyncPayClient, PayClient
+from .errors import (
+    WebhookConfigurationError,
+    WebhookError,
+    WebhookHeaderError,
+    WebhookSignatureError,
+    WebhookTimestampError,
+)
 from .models import (
     AppBalances,
     AppInfo,
@@ -56,6 +63,7 @@ from .models import (
     WithdrawalLinkRequest,
     WithdrawalQuotas,
 )
+from .webhooks import verify_webhook_signature
 
 __all__ = [
     "AppBalances",
@@ -106,6 +114,11 @@ __all__ = [
     "PayoutCreateRequest",
     "Rate",
     "UnknownInvoiceTransaction",
+    "WebhookConfigurationError",
+    "WebhookError",
+    "WebhookHeaderError",
+    "WebhookSignatureError",
+    "WebhookTimestampError",
     "Withdrawal",
     "WithdrawalCallback",
     "WithdrawalCallbackRequest",
@@ -113,4 +126,5 @@ __all__ = [
     "WithdrawalLink",
     "WithdrawalLinkRequest",
     "WithdrawalQuotas",
+    "verify_webhook_signature",
 ]

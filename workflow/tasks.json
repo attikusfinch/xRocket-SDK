@@ -343,12 +343,12 @@
     {
       "id": "P016",
       "title": "Проверка подписи Current webhook по исходным байтам",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P003"
       ],
       "card": "tasks/P016.md",
-      "handoff": null,
+      "handoff": "handoffs/P016-01.md",
       "operations": []
     },
     {

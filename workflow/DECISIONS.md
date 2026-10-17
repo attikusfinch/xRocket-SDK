@@ -41,6 +41,8 @@
 
 | D029 | Withdrawal links — отдельный withdrawal_links.create, WithdrawalLinkRequest и WithdrawalLink, singular POST/exact200. Network required без подстановки default; address100/comment50, platform только caller-supplied по указанию xRocket. Все response links независимо optional: missing → None, explicit null отвергается по non-nullable string schema, без URL/непустоты/at-least-one guards; unknown fields сохраняются | Реализовано offline в P015 по Current OAS; без смешения с прямым withdrawal/Legacy, открытия links и скрытых retries. Server acceptance/nullable override/expiry/idempotency не подтверждены live; [контракт](../spec/pay-api.md), [handoff](handoffs/P015-01.md) |
 
+| D030 | Current webhook verifier — отдельная stateless функция в Pay, точные timestamp ASCII bytes + dot + raw body, direct secret str UTF-8/bytes и compare_digest decoded digests. Имена headers case-insensitive, values exact, ASCII digits/leading zeros, v1/64hex; отдельные WebhookError subclasses без входных значений/внутренних chains | Реализовано offline в P016 по сохранённому Current info.description; default ±300000 ms inclusive, nonnegative integer tolerance/clock (zero exact) — явная SDK policy, не upstream guarantee. Не парсит JSON, не хранит delivery IDs; typed events остаются P017. [Контракт](../spec/pay-api.md), [handoff](handoffs/P016-01.md) |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай
