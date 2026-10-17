@@ -187,7 +187,7 @@ every inline OAS problem subtype or expose body in ordinary exception messages.
 `.venv/Scripts/python.exe -`, standard-library `json`/`inspect`/`ast`, без сети)
 сопоставил явную карту методов с snapshot и queue: **18 paths / 25 operations,
 25 unique owners, 50 sync/async methods, одинаковые signatures и literal routes**.
-Проверка документа нашла все **56 named test-function anchors** и **75 relative
+Проверка документа нашла все **60 distinct test-function names (63 AST locations)** и **75 relative
 file links**. Это статические/интроспекционные assertions, без нового запуска
 pytest внутри этого аудита; фактический offline pytest pass фиксируется отдельно
 в P018 ledger/handoff. Эти числа описывают разные проверки и не складываются.
