@@ -47,6 +47,8 @@
 
 | D032 | Webhook-only before validators проверяют known nested date-time wire values до REST DTO coercion: invoice created_at/expires_at, payment finalized_at, known internal/blockchain transaction created_at/finalized_at. Alias precedence и nullable/omission сохраняются; unknown/raw поля не обходятся, REST DTO не меняются | P017 correction attempt 1 после P2 nested epoch coercion: [rejected review](reviews/P017-01.md). Реализовано offline, числовые epochs/numeric strings не могут ложно установить finality; Current cheque/payout/withdrawal дат не объявляют. [Контракт](../spec/pay-api.md), [handoff](handoffs/P017-02.md) |
 
+| D033 | Pay scope закрывается как offline readiness сохранённого Current OAS: 25 unique queue owners и 50 sync/async public methods сверены с реальными resources/DTO/tests, отдельно от session.py inventory. GET all2xx, optional total/response null/Money tolerance сохранены и описаны, не выданы за строгую OAS/live гарантию | P018: [матрица](../spec/pay-operation-matrix.md), [датированный ledger](../spec/pay-readiness-2026-10-18.md). Новый offline pass не заменяет исторические public live results/private skips; Exchange discovery остаётся отдельной X001 после review. Runtime behavior не менялся |
+
 Существенное новое решение добавляй с ID, причиной, затронутыми файлами и статусом
 (предложено / реализовано / подтверждено live / заменено Dxxx). Для отменённого
 решения сохраняй строку и ссылку на замену. Локальные детали реализации не превращай

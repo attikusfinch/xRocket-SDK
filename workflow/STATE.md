@@ -242,7 +242,18 @@ Current DTO объявленных дат нет. Добавлены 193 signed 
 В этой correction-сессии 502 целевых и 3154 full offline tests прошли
 (40 live deselected), Ruff, strict mypy (39 files), build/wheel-only smoke прошли.
 Внутренняя проверка не нашла оставшихся замечаний; локальный correction commit
-ещё требует свежего независимого acceptance review. Push/live не выполнялись.
+впоследствии принят и опубликован координатором: [P017-02 review](reviews/P017-02.md).
+Прежний rejected round сохранён. Уточнение evidence: 24 unique reachable schemas,
+все 9 known nested date paths покрыты; исторический handoff count26 не исправлялся.
+
+P018: [матрица 25 операций](../spec/pay-operation-matrix.md) связывает каждый owner
+с фактическими sync/async API, wire/DTO/errors и synthetic tests/source. Новый
+offline full pass: 3163 passed, 40 live deselected; Ruff и strict mypy (39 source
+files) прошли. Включены 9 meaningful example cases через MockTransport/synthetic
+signing; они входят в full total. Итоговые build/wheel evidence и ограничения —
+в [датированном readiness ledger](../spec/pay-readiness-2026-10-18.md) и
+[P018 handoff](handoffs/P018-01.md). README/примеры актуальны, runtime не менялся.
+Это candidate для независимого review координатора; push/live не выполнялись.
 
 ## Ограничения и ближайшее направление
 
@@ -259,16 +270,16 @@ PAY-016: create clientWithdrawalId допускает 150, GET — 100; обще
 не выполнялись: testnet JWT отсутствует; независимые skips по отсутствующим ID
 и quota pair проверены offline. Только `XROCKET_PAY_TESTNET_TOKEN`, без fallback.
 Денежных live операций, production проверки, PyPI публикации не было.
-Основной план: небольшие ресурсные задачи Pay, затем Exchange discovery.
+Pay offline scope завершён; ближайшее направление — отдельный Exchange discovery.
 Архитектура остаётся draft, но существующий public API сохраняется при расширении.
 
 Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
 PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
 batch target types, атомарность и deduplication/replay semantics live не подтверждены.
-Следующая доступная задача — P018 (проверка полноты Pay и перехода к Exchange);
-она не начата. Продолжение — через `tools/session.py next`,
-чтение её карточки и handoffs прямых зависимостей по обычному протоколу.
+После принятия P018 следующая доступная задача — X001 (исследовать Exchange);
+она в P018 не начиналась. Продолжение — через `tools/session.py next`,
+чтение её карточки и handoff P018 по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.
 Write foundation P008 завершён до write ресурсов. Новые API детали
 исследуются в соответствующей карточке, а не угадываются на весь roadmap.

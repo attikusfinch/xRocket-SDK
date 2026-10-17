@@ -1,6 +1,19 @@
 # План реализации и проверки
 
-## Этап 0 — контракт и runnable skeleton (текущий)
+## Состояние после P018, 2026-10-18
+
+Все 25 операций сохранённого Current OAS реализованы у обоих клиентов. Таблица
+[operation → API → tests/source](pay-operation-matrix.md) сверена с реальными
+resources/DTO и синтетическими fixtures, а не только с `session.py` inventory.
+Новый полный offline результат и точные ограничения — в
+[readiness ledger](pay-readiness-2026-10-18.md); первый [verification.md](verification.md)
+и [live журнал](live-verification.md) остаются историческими evidence.
+
+Следующие этапы сохранены как структура плана. P018 завершает offline Pay scope;
+live acceptance, replay/idempotency и остальные открытые API facts не закрыты.
+X001 исследует Exchange отдельно и не выполняется в P018.
+
+## Этап 0 — контракт и runnable skeleton (выполнен offline)
 
 - Зафиксировать Current/Legacy OpenAPI и provenance, выбрать Current-only.
 - Проверить границы Pay/Exchange и сравнить архитектуры официальных Python SDK.
@@ -19,15 +32,15 @@ Fixtures — синтетические примеры из контракта, 
 не доказывают совместимость реального сервера. Снимок OAS не является текущим
 ответом production API и не обновляется автоматически во время тестов.
 
-## Этап 1 — завершить чтение Pay
+## Этап 1 — чтение Pay (реализовано, live private не подтверждено)
 
-Добавить cheques, payouts, withdrawals, quotas, invoice payments и health.
-Покрыть все nullable transaction fields и union types. Отдельно уточнить
+Добавлены cheques, payouts, withdrawals, quotas, invoice payments и health.
+Nullable transaction overrides и union types проверены synthetic tests. Отдельно уточнить
 `rates` optional auth, encoding query arrays и ограничения limit.
-Read-only smoke по testnet с токеном из переменной окружения — отдельная задача;
-токен не нужен для обычного запуска тестов.
+Read-only testnet harness реализован как отдельный opt-in запуск; private live
+подтверждения требуют явных JWT/fixtures. Токен не нужен для обычных offline tests.
 
-## Этап 2 — write и webhooks
+## Этап 2 — write и webhooks (реализованы offline)
 
 1. Invoice create/delete и payment address; клиентские условия priceAmount/minPayment.
 2. Cheques и webhook verification Current v1: raw bytes, HMAC, compare_digest,
@@ -43,6 +56,20 @@ POST/exact200, точные деньги, DTO bounds, optional links/unknown fie
 в sync/async. Наличие ссылки не требует перехода по ней.
 Денежные end-to-end tests требуют отдельного явного задания и входных данных;
 текущий проект таких тестов не содержит.
+
+Webhook tests: `tests/test_webhook_signatures.py` проверяет Current raw-byte HMAC,
+headers/time policy и diagnostics; `tests/test_webhook_events.py` — auth-first,
+typed variants/unknown fallback, Decimal/aware dates, raw snapshots и девять known
+nested date paths после correction. Reachable graph — **24 unique schemas** по
+[accepted P017 review](../workflow/reviews/P017-02.md); прежний handoff count26
+остаётся историей. Это не live signing/delivery/rotation/retry evidence.
+
+`tests/test_examples.py` исполняет [read](../examples/pay_read.py),
+[write](../examples/pay_write.py) и [webhook](../examples/pay_webhook.py) функции:
+MockTransport, synthetic env/signing, testnet, exact money, stable ID, один вызов,
+timeout, unknown status/fallback/finality и imports без credentials. Реальные
+HTTP transports заблокированы fixture; top-level I/O в примерах нет. Эти cases
+проверяют документацию как пользовательский сценарий и входят в full suite.
 
 ## Этап 3 — Exchange
 

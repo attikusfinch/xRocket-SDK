@@ -368,7 +368,7 @@
     {
       "id": "P018",
       "title": "Проверить полноту Pay и подготовить переход к Exchange",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P007",
         "P019",
@@ -382,7 +382,7 @@
         "P017"
       ],
       "card": "tasks/P018.md",
-      "handoff": null,
+      "handoff": "handoffs/P018-01.md",
       "operations": []
     },
     {

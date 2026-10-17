@@ -1,14 +1,16 @@
 # Архитектура Python SDK
 
-Статус: проект решения для обсуждения, проверенный первым read-only срезом.
-Исследование API: 17 октября 2026 года. Python 3.11+; рабочее имя дистрибутива
+Статус: реализованные границы Current Pay, сверены P018 18 октября 2026 года.
+Все 25 REST операций и webhooks проверены offline; [ledger](pay-readiness-2026-10-18.md)
+отделяет этот результат от live истории и неподтверждённых гарантий.
+Исследование snapshot: 17 октября 2026 года. Python 3.11+; имя дистрибутива
 `xrocket-sdk`, import namespace `xrocket`. Доступность имени в PyPI пока не проверена.
 
 ## Границы модулей
 
 Один дистрибутив содержит независимые продукты `xrocket.pay` и `xrocket.exchange`.
 Пользователь импортирует только нужный клиент. Pay работает с приложением мерчанта,
-Exchange — с торговым аккаунтом, market data и WebSocket. Даже при одинаковой Bearer
+будущий Exchange — с торговым аккаунтом, market data и WebSocket. Даже при одинаковой Bearer
 схеме токены и HTTP-сессии продуктов не объединяются автоматически.
 
 ```text
@@ -36,6 +38,9 @@ src/xrocket/
       payout_requests.py # отдельные PayoutCreateRequest / PayoutCallbackRequest
                          # и MassPayoutCreateRequest / MassPayoutItemRequest
       mass_payouts.py    # MassPayoutResult / MassPayoutError / MassPayoutErrorReason
+      webhooks.py       # authenticated envelope DTO, typed variants и unknown fallback
+    webhooks.py          # raw-byte verifier и verify-before-decode safe path
+    errors.py            # отдельные webhook errors
     resources/           # app, cheques, currencies, health, rates, invoices, payouts,
                          # withdrawals, withdrawal_links
   exchange/              # зарезервирован; исполняемого клиента пока нет
@@ -49,12 +54,12 @@ response-модель, денежный тип и cursor pagination остают
 Прежние импорты моделей из `xrocket.pay.models` и `xrocket.pay` сохранены и
 возвращают те же классы; `Money` по-прежнему доступен из `xrocket.pay.models`.
 Ресурсы используют эти re-exports; DTO зависят только от Pay `_base` и своих
-вложенных моделей. Полные каталоги будущих ресурсов описаны в
+вложенных моделей. Полный каталог реализованных Pay ресурсов описан в
 [контракте Pay](pay-api.md).
 
 В Exchange появятся собственные REST-ресурсы и отдельный WebSocket-клиент.
 Реконнект, heartbeat, восстановление подписок, backpressure и последовательность
-событий не входят в HTTP transport. Типы `PayInvoice` и будущего биржевого `Order`
+событий не входят в HTTP transport. Типы `Invoice` и будущего биржевого `Order`
 не сводятся к общему абстрактному объекту сделки.
 
 ## Public API
@@ -152,8 +157,10 @@ non-2xx использует прежние API errors. `get()` сохраняе
 Write JSON отправляется как готовые bytes с application/json; framing отражает
 реальную длину, чужие Transfer-Encoding/Content-Encoding defaults не наследуются.
 Исходный внедрённый HTTP client не меняется. `/health` остаётся GET-only,
-GET body не поддержан. Остальные endpoint-specific DTO и retry/idempotency policy —
-следующие карточки, автоматических mutation retries или ID генерации нет.
+GET body не поддержан. Все endpoint-specific DTO Pay реализованы; автоматических
+mutation retries или ID генерации нет. Retry/idempotency policy потребует отдельного
+подтверждённого контракта. GET сохраняет совместимость со всеми 2xx при валидном DTO,
+хотя OAS перечисляет только 200; это reader policy SDK, не наблюдение сервера.
 
 ## HTTP и владение ресурсами
 
@@ -189,7 +196,7 @@ lookup в пределах GET bounds. Для withdrawal client ID длиной 
 Неизвестный статус сам по себе не означает успех.
 
 Деньги — `Decimal`, исходные строки разбираются без промежуточного `float`.
-`float`, `bool`, NaN и Infinity для денежных полей отвергаются. Будущая запись
+`float`, `bool`, NaN и Infinity для денежных полей отвергаются. Запись
 принимает `Decimal | str` и отправляет десятичную строку; SDK не округляет за
 пользователя. Timestamp — timezone-aware datetime; Current `expiresIn` в ms.
 
@@ -212,9 +219,17 @@ Cursor pagination принадлежит Pay. Метод `list()` возвращ
 может создавать внутренние wire types/fixtures с проверяемыми patches, но не должен
 переписывать вручную спроектированную поверхность клиента.
 
-Версия пакета общая для Pay и Exchange. Изменения в любом public модуле учитываются
+Версия пакета общая для Pay и Exchange. Изменения в любом public модуле должны учитываться
 в changelog. До первого стабильного релиза API является draft; ни PyPI publication,
 ни Exchange/Legacy support эта заготовка не обещает.
+
+P018 проверила AST imports, runtime сигнатуры и build artifacts: `_core` не зависит
+от продуктов, Pay не импортирует Exchange, импорт каждого namespace самостоятелен.
+Это подтверждает возможность отдельно исследовать Exchange в X001; совместимость
+с ещё не спроектированным Exchange runtime этим не гарантируется. Public exports
+сохраняют идентичность классов между Pay import paths, `Money` остаётся models-only.
+Wheel содержит runtime и `py.typed`, sdist также содержит offline tests, specs,
+workflow и исполнимые examples; локальное состояние autopilot исключено.
 
 ## Основания решений
 

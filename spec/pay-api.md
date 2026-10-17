@@ -1,6 +1,11 @@
 # xRocket Pay: контракт Python SDK
 
-Статус: исследование контракта и спецификация первого read-only среза, 2026-10-17. Первый поддерживаемый API — **Pay Current**. Exchange будет отдельным модулем SDK. Legacy сохранён как источник миграционных различий, его поддержка в первый срез не входит.
+Статус: реализованный Current Pay scope, сверка P018 от 2026-10-18. Исходный
+snapshot исследован 2026-10-17. Все 25 REST операций и typed webhooks реализованы;
+[матрица](pay-operation-matrix.md) связывает wire contract с реальными API/tests,
+[readiness ledger](pay-readiness-2026-10-18.md) отделяет новый offline pass от live
+истории и ограничений. Exchange будет отдельным модулем SDK. Legacy сохранён
+как источник миграционных различий, исполняемого Legacy клиента нет.
 
 ## 1. Источники и приоритет
 
@@ -82,6 +87,11 @@ Legacy использует `Rocket-Pay-Key`, а его snapshot указыва�
 
 Важные особенности маршрутов: singular `/invoice`, `/cheque`, `/payout`, `/withdrawal` для retrieve; update/delete cheque используют plural `/cheques`. Нельзя выводить путь из правила единственного/множественного числа. Для большинства POST success равен 200, для payment address — 201; decoder должен учитывать контракт конкретной операции.
 
+Фактическая GET policy SDK сохраняет все 2xx с последующей проверкой DTO (D020),
+хотя OAS документирует только 200. Записи проверяют точный success status,
+DELETE — строго пустой body. Это различие перечислено в матрице, не скрыто
+под утверждением «exact200 для всех операций».
+
 ## 4. Поддерживаемые методы SDK
 
 Read-only методы проверяют общий transport, auth, сериализацию параметров, ошибки
@@ -137,7 +147,9 @@ Python Optional/генерируемая JSON Schema не заменяют эт�
 
 `GET /api/v1/rates`; у `base` в OAS указан default `USD`. `assets` — массив строк. Ответ — массив объектов с обязательными `currency: str`, `rate: str`; в SDK rate — `Decimal`. В ответе base не дублируется, поэтому он относится к контексту запроса.
 
-Источник: `#/paths/~1api~1v1~1rates/get`, `#/components/schemas/RateResponseDto`. Optional auth требует отдельного подтверждения.
+Источник: `#/paths/~1api~1v1~1rates/get`, `#/components/schemas/RateResponseDto`.
+Optional auth подтверждена исторически только для записанного testnet запроса;
+другие окружения и варианты запроса остаются неподтверждёнными.
 
 ### `invoices.create(request=InvoiceCreateRequest(...))`
 
@@ -679,7 +691,7 @@ Key» устарело относительно operation bearer security; Legac
 
 ### Деньги
 
-Current передаёт суммы, balances, rates и fees строками. Публичные Python-модели используют `Decimal`; для будущих write methods допускаем `Decimal` и корректную decimal string, сериализуем в JSON string. Не используем binary float как промежуточный формат, не округляем без явного правила API и не считаем все активы имеющими одинаковую precision.
+Current описывает суммы, balances, rates и fees строками. Публичные Python-модели используют `Decimal`; write methods допускают `Decimal` и корректную decimal string, сериализуют в JSON string. Response Money также принимает конечные int/Decimal как совместимость reader; это не подтверждение числового wire формата upstream. Не используем binary float как промежуточный формат, не округляем без явного правила API и не считаем все активы имеющими одинаковую precision.
 
 P008: внутренний `RequestMoney` принимает только конечный Decimal или decimal
 string; float, bool, int, NaN/Infinity отвергаются до сети. Response Money остаётся
@@ -737,6 +749,12 @@ Current invoice IDs и прочие ID — строки. Не приводим �
 
 Основные коллекции invoices, cheques, payouts, withdrawals имеют `items` и `pagination: {total, next}`. `next` nullable, но required. `next: null` означает конец. Cursor — непрозрачная строка; его не декодируем, не конструируем из ID и не заменяем offset.
 
+OAS требует `total:number`, но существующий `CursorPagination.total` допускает
+omission/null и хранит int при наличии — reader tolerance SDK, проверенная
+`tests/test_models.py::test_shared_page_does_not_require_total`. Это не новое
+live подтверждение optional/integer-only total. Invoice payments используют
+свою schema без total.
+
 Invoice payments отличаются: `InvoicePaymentListResponseDto` содержит `pagination: {next}` без total. Generic page abstraction не должна требовать total у всех response типов. Нельзя определять конец только по `len(items) < limit`: сервер даёт явный next cursor.
 
 В первом срезе метод `list()` возвращает одну страницу с доступной pagination. Автопагинация может быть отдельным helper после проверки cursor semantics. Любой iterator должен иметь защиту от повторяющегося cursor и не запускать бесконечный цикл при неконсистентном сервере.
@@ -749,7 +767,7 @@ Current errors описаны problem objects с обязательными `typ
 
 `type` — строка вида `/api/problems/invoice_not_found`. `kind` — более широкая категория; встречаются `client_data_validation`, `validation`, `authentication`, `authorization`, `unauthorized`, `forbidden`, `not_found`, `conflict`, `rate_limit`, `internal`. Оба поля сохраняем. HTTP status доступен независимо от наличия/качества JSON body.
 
-Для первого среза:
+Для базовых read операций (полная сверка остальных errors — в матрице P018):
 
 | Метод | Problem types помимо общих internal/rate-limit |
 | --- | --- |
@@ -762,7 +780,7 @@ Current errors описаны problem objects с обязательными `typ
 
 Общие типы: 429 `/api/problems/rate_limit_exceeded`, 500 `/api/problems/internal_error`. Список документированных codes не исключает gateway 502/503, не-JSON ответ или новый problem type. В текущем срезе fallback API error сохраняет HTTP status, problem object (если JSON — объект), x-request-id и retry-after при наличии. Произвольное тело и остальные headers пока не сохраняются; отдельный raw response API отложен. Transport/timeout сохраняют исходное исключение в `__context__`, но подавляют его автоматическую печать, чтобы исходное сообщение HTTP-клиента не утекало в логи.
 
-В OAS нет численных request/sec лимитов, гарантированного `Retry-After`, request-id header или схемы exponential backoff. Первый transport не повторяет операции автоматически. Будущая retry policy должна быть bounded, учитывать Retry-After при его наличии и различать read-only request и финансовую mutation. Для POST нельзя выводить безопасность повторения только из имени поля client ID.
+В OAS нет численных request/sec лимитов, гарантированного `Retry-After`, request-id header или схемы exponential backoff. Текущий transport не повторяет операции автоматически. Будущая retry policy должна быть bounded, учитывать Retry-After при его наличии и различать read-only request и финансовую mutation. Для POST нельзя выводить безопасность повторения только из имени поля client ID.
 
 ### Клиентские ID и предотвращение дублей
 
@@ -965,12 +983,13 @@ processing остаются ответственностью приложени�
 
 Legacy содержит собственные дефекты: `AppBalance.currency/balance` помечены object вопреки scalar examples; string length иногда выражена numeric maximum; не следует использовать его schema для моделирования Current. Legacy поддержка в будущем требует отдельного явного adapter/namespace, не флага, незаметно меняющего auth/DTO/units внутри Current client.
 
-## 11. Проверки первого этапа
+## 11. Проверки общего pipeline
 
 Offline contract tests через подставной transport покрывают реальные различия wire contract:
 
 1. Точный HTTP method/path, отсутствие двойного `/api/v1`, JWT header и отсутствие утечки токена.
-2. Public currencies request без токена; optional rates отдельно после уточнения.
+2. Public currencies/rates requests без токена; live rates подтверждён только
+   историческим testnet USD/BTC/ETH запросом, без обобщения на все окружения.
 3. Aliases `invoice_id → invoiceId`, `client_invoice_id → clientInvoiceId`; None опущен, оба ID сохраняются с серверным приоритетом invoiceId.
 4. Повторяющиеся query keys для ids/assets; base default не подменяется примером; filter/cursor не теряются.
 5. Decimal без float: большие значения, много десятичных знаков, trailing zeros; empty balances.
@@ -1003,4 +1022,6 @@ private GET только при `XROCKET_PAY_TESTNET_TOKEN`. Retrieve/payment и
 - Есть ли гарантированный machine-readable stable error code помимо type URI и устойчивы ли kind значения?
 - Нужен ли Legacy продуктово, или достаточно Current SDK и migration guide?
 
-Эти вопросы не блокируют offline read-only каркас. Они должны быть закрыты подтверждёнными fixtures/официальным уточнением перед заявлением соответствующих гарантий SDK.
+Эти вопросы не блокируют ограниченный offline Pay scope. Они должны быть закрыты
+подтверждёнными fixtures/официальным уточнением перед заявлением соответствующих
+серверных гарантий SDK; готовность P018 их не закрывает.

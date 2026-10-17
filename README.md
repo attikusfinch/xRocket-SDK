@@ -1,23 +1,21 @@
-# xRocket Python SDK — проектирование и первый срез
+# xRocket Python SDK — Current Pay
 
-Python 3.11+. **Draft**, без публикации в PyPI. Поддерживается Current Pay API;
-Exchange запланирован отдельным модулем того же пакета. Legacy API исследован
-для сравнения, исполняемого Legacy-клиента нет.
+Python 3.11+, `xrocket-sdk` 0.1.0.dev0, **draft**, без публикации в PyPI.
+Реализованы все 25 REST операций сохранённого Current Pay контракта и локальная
+проверка/типизация webhooks. Exchange пока содержит только namespace; Legacy
+клиента нет. Offline готовность Pay позволяет отдельно исследовать Exchange,
+но не означает production verification или готовность денежных end-to-end сценариев.
 
-## С чего начать чтение
+- [Матрица 25 операций: API, owner, wire, tests и источники](spec/pay-operation-matrix.md)
+- [Итоговый readiness ledger, 2026-10-18](spec/pay-readiness-2026-10-18.md)
+- [Полный контракт, ограничения DTO и PAY-001–018](spec/pay-api.md)
+- [Архитектура](spec/architecture.md), [план проверок](spec/test-plan.md)
+- [Новая сессия](START.md), [очередь](workflow/tasks.json), [управляемый цикл](workflow/AUTOPILOT.md)
+- История: [первый срез](spec/verification.md), [live testnet журнал](spec/live-verification.md)
 
-- [Новая сессия: стартовый промпт и очередь задач](START.md)
-- [Управляемый цикл: отдельные исполнители, review и Git](workflow/AUTOPILOT.md)
-- [Архитектура и границы Pay/Exchange](spec/architecture.md)
-- [Исследование Stripe, OpenAI, Coinbase и CCXT](spec/sdk-comparison.md)
-- [Pay: все 25 операций, контракты и проблемы документации](spec/pay-api.md)
-- [План реализации и тестов](spec/test-plan.md)
-- [Результаты фактических проверок](spec/verification.md)
-- [Источники и зафиксированные OpenAPI](spec/openapi/README.md)
+## Public API
 
-## Что уже работает
-
-Одинаковые ресурсы у `PayClient` и `AsyncPayClient`:
+Одинаковые ресурсы у `PayClient` и `AsyncPayClient`; async вызовы используют `await`.
 
 | Метод SDK | Current Pay API |
 |---|---|
@@ -47,271 +45,17 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.withdrawals.quotas(network=..., asset=...)` | `GET /api/v1/withdrawal-quotas` |
 | `pay.withdrawal_links.create(request=WithdrawalLinkRequest(...))` | `POST /api/v1/withdrawal-link` |
 
-Ответы типизированы, деньги читаются как `Decimal`. Списки возвращают одну страницу.
-`pay.health.get()` доступен без токена и возвращает `Health` с типизированными
-компонентами `HealthComponent` в `info`, `error`, `details`. Неизвестные статусы
-и поля сохраняются. Асинхронный вызов — `await pay.health.get()`.
-Status-only ответ также поддерживается: отсутствующие коллекции компонентов —
-`None` (сведения неизвестны), переданные пустые коллекции — `[]`.
-Явный `null` вместо переданной коллекции отвергается. Для сохранения missing
-при сериализации используйте `health.model_dump(exclude_unset=True)`.
-`invoices.payments()` возвращает одну `InvoicePaymentPage`; `pagination.next`
-равен `None` на последней странице. Вложенные internal/blockchain транзакции
-типизированы, неизвестный тип сохраняется как `UnknownInvoiceTransaction`.
-Состояние завершения платежа определяется `finalized_at`, а не неизвестным status.
-`invoices.create()` принимает отдельный `InvoiceCreateRequest` и возвращает `Invoice`
-по HTTP 200. Request DTO доступны из `xrocket.pay` и `xrocket.pay.models`:
-`InvoiceCreateRequest`, `InvoiceCallbackRequest`, `InvoiceURLRequest`, `InvoiceCustomerRequest`.
-Суммы принимают Decimal/decimal string, `expires_in` — целое в миллисекундах, 0 сохраняется.
-Пропущенные поля не отправляются, явный None для этих non-nullable request fields отвергается.
-Нельзя одновременно передать `price_amount` и `min_payment`; отсутствие обеих допускается
-по OAS, но принятие сервером не подтверждено (PAY-008). Request/response DTO не смешиваются.
-`invoices.delete()` требует хотя бы один непустой строковый ID до 100 символов,
-передаёт оба при наличии и возвращает None на пустой HTTP 200. Create client ID
-не ограничен этими 100 символами. Live mutations в проверках проекта не выполнялись.
-`invoices.create_payment_address()` принимает `InvoiceCreatePaymentAddressRequest`
-с обязательным `pay_network` (`TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`). Один или оба
-ID длиной 1–100 передаются в query; body содержит только `payNetwork`.
-Только HTTP 201 возвращает `InvoicePaymentAddress`: адрес, валюту, сеть и обязательный
-`expires_at` с часовым поясом. Необязательный `min_amount` читается как Decimal;
-при отсутствии равен None, явный null отвергается. Неизвестные response поля/сети
-сохраняются. Async-вызов использует те же аргументы с `await`.
+Request/response DTO доступны из `xrocket.pay` и `xrocket.pay.models`; это те же
+классы. Общие HTTP ошибки импортируются из `xrocket`, webhook ошибки — из
+`xrocket.pay`. Ответы сохраняют неизвестные поля/строковые статусы. Строковые
+суммы читаются как `Decimal`, суммы записи принимают конечный `Decimal` или
+decimal string и отправляются точной JSON string без округления; float запрещён.
+Response DTO автоматически не превращаются в request.
 
-```python
-from xrocket.pay import InvoiceCreatePaymentAddressRequest
-
-# Uses an existing authenticated PayClient and an existing invoice ID.
-address = pay.invoices.create_payment_address(
-    invoice_id="existing-invoice-id",
-    request=InvoiceCreatePaymentAddressRequest(pay_network="TON"),
-)
-print(address.address, address.expires_at, address.min_amount)
-```
-
-`cheques.list()` возвращает `CursorPage[Cheque]` и принимает `from_date` / `to_date`
-как datetime с часовым поясом, парные `target_type` / `target`, `state`, `cursor`
-и целочисленный `limit` от 1 до 1000. Даты передаются в ISO 8601 с исходным offset.
-`cheques.retrieve()` требует хотя бы один непустой строковый ID длиной до 100
-символов; если заданы оба, передаёт оба. В `Cheque` обязательны только `cheque_id`,
-`asset`, `links`, `deleted`; ссылки внутри `links` и `state` необязательны.
-Отменённый чек может читаться через retrieve с `deleted=True`; list исключает
-отменённые чеки по контракту API. Поле суммы в Current ChequeResponseDto не описано.
-`cheques.create()` принимает отдельный `ChequeCreateRequest` с обязательными `asset`
-и `amount` (Decimal/decimal string), client ID до 50 символов и парными target fields.
-`ChequeCallbackRequest` / `ChequeURLRequest` задают вложенные webhook/redirect параметры.
-Все request DTO доступны из `xrocket.pay` и `xrocket.pay.models`, extra fields запрещены.
-Password хранится как SecretStr: repr и обычные dumps маскируют значение; исходное
-значение попадает только в подготовленный HTTP body. Не записывайте этот body в логи.
-Surrogate code points в request строках/ключах отвергаются до I/O общим ValueError
-без JSON/password в исключении; обычный Unicode и emoji поддерживаются.
-`cheques.update(request=ChequeUpdateRequest(description=""), cheque_id=...)` очищает
-описание; omission оставляет его без изменения, explicit None запрещён.
-Update поддерживает только description. Update/delete требуют ID длиной 1–100,
-передают оба при наличии. Все три mutation paths plural; create/update возвращают
-Cheque только на HTTP 200, delete — None на строго пустой HTTP 200.
-`payouts.list()` возвращает одну `CursorPage[Payout]`; даты принимаются как datetime
-с часовым поясом, cursor сохраняется буквально. `limit` принимает целое число;
-его диапазон этот GET в OAS не задаёт, SDK оставляет проверку диапазона серверу.
-`payouts.retrieve()` требует хотя бы один непустой строковый ID до 100 символов
-и передаёт оба, если заданы оба. `Payout.amount` — точный `Decimal`, обязательные
-`status` / `target_type` принимают неизвестные строки, `callback` необязателен.
-`payouts.create()` принимает отдельный `PayoutCreateRequest` с обязательными
-`target` (до 100 символов), `target_type` (`user_id`, `telegram_user_id`,
-`telegram_username`), `asset` и `amount` (Decimal/decimal string → точная JSON string).
-Необязательны `client_payout_id` (до 50 символов), `description` без ограничения
-длины в schema и `PayoutCallbackRequest(callback_url=..., payload=...)`;
-callback URL — до 500 символов, payload — JSON object. DTO доступны из обоих
-public model import paths. Пропущенные поля не отправляются, explicit None запрещён.
-HTTP 200 возвращает `Payout`; async использует те же аргументы с `await`.
-
-Сохраните стабильный client ID до отправки payout. SDK не создаёт и не меняет
-его, duplicate API error передаётся вызывающему коду. `RequestTimeoutError`
-означает неизвестный итог: выплата могла быть создана. SDK делает одну HTTP
-попытку без автоматического lookup или повтора. После timeout выполните явный
-`pay.payouts.retrieve(client_payout_id=saved_id)` (в async — с `await`) для сверки.
-Это отдельный GET; not-found сам по себе не доказывает безопасность повторной
-выплаты. Срок и scope дедупликации сервером не подтверждены.
-
-`payouts.create_mass()` принимает `MassPayoutCreateRequest(asset=..., payouts=[...])`.
-Внутри — отдельные `MassPayoutItemRequest` без asset: обязательны `target`,
-`target_type="telegram_user_id"` и точный `amount`; client ID, description и
-`PayoutCallbackRequest` необязательны с теми же omission/null правилами.
-Для batch разрешён только Telegram user ID по описанию операции: более широкий
-OAS enum противоречит prose и пока не подтверждён (PAY-010). Локального лимита
-размера batch нет: ошибочный `maxLength: 500` на object не задаёт `maxItems`
-(PAY-009). Принятие сервером пустого или большого batch не подтверждено.
-
-HTTP 200 возвращает `MassPayoutResult`: `success_payouts` содержит `Payout`,
-`error_payouts` — `MassPayoutError` с typed `MassPayoutErrorReason`.
-`result.has_errors` отмечает наличие ошибок, `result.is_partial` — смесь успехов
-и ошибок. Проверяйте оба массива, в том числе когда все items завершились ошибкой.
-Все DTO публичны из `xrocket.pay` и `xrocket.pay.models`; async использует `await`.
-
-Сохраните отдельный стабильный client ID каждого item до отправки. IDs, ведущие
-нули, порядок и дубликаты в каждом массиве ответа сохраняются. Позиции ответа
-не сопоставляются с request: API не обещает общий порядок и не даёт index для
-ошибок. Без уникальных client IDs однозначная корреляция не гарантируется.
-SDK делает один POST без разбиения, параллельных single payouts, lookup или
-автоповтора. Успешные items не повторяются. После timeout исход каждого item
-неизвестен; сверяйте его отдельно по сохранённому ID. Не повторяйте весь batch
-по факту частичной ошибки; безопасная семантика replay не подтверждена live.
-
-`withdrawals.create()` принимает отдельный `WithdrawalCreateRequest`: обязательны
-`client_withdrawal_id` (до 150 символов), `network` (`TON`, `BSC`, `ETH`, `BTC`,
-`TRX`, `SOL`), `address` (до 100 символов), `asset` и `amount` (Decimal/decimal
-string → точная JSON string). Network задаётся явно, default из OAS не подставляется.
-Необязательны `comment` до 50 символов и `WithdrawalCallbackRequest` с optional
-`callback_url` до 500 символов / `payload` (JSON object). DTO доступны из
-`xrocket.pay` и `xrocket.pay.models`. Пропущенные поля не отправляются, explicit
-None и extra fields запрещены. SDK не нормализует адреса, asset или comment,
-не округляет и не обрезает amount. HTTP 200 возвращает существующий `Withdrawal`;
-асинхронный вызов использует те же аргументы с `await`.
-
-Сохраните стабильный непустой client ID до отправки. SDK требует поле и сохраняет
-значение без генерации, замены или усечения; OAS не задаёт minLength, принятие
-пустой строки сервером не подтверждено. Для последующего lookup по client ID
-выбирайте длину 1–100: create допускает 101–150, но retrieve такой ID отвергнет
-локально (PAY-016). При успешном create можно сохранить `result.withdrawal_id`
-для явного retrieve. После `RequestTimeoutError` итог неизвестен: withdrawal мог
-быть создан, это не подтверждённый отказ перевода. SDK делает ровно одну HTTP
-попытку без retry, lookup или polling. Для сверки используйте отдельный retrieve
-по сохранённому ID в его диапазоне; lookup по длинному client ID не обещается.
-Not-found не доказывает безопасность повтора; дедупликация/replay не подтверждены live.
-
-`withdrawals.list()` возвращает одну `CursorPage[Withdrawal]` с такими же date/cursor/
-limit правилами, как payouts. Фильтр `status` принимает `CREATED`, `COMPLETED`, `FAIL`.
-В ответе status необязателен и допускает неизвестные строки с сохранением регистра.
-`withdrawals.retrieve()` локально требует один из ID длиной 1–100 символов;
-семантика сервера без ID не подтверждена (PAY-017). Create допускает client ID
-до 150 символов, поэтому retrieve по всей этой длине не обещается (PAY-016).
-`withdrawals.quotas(network="TON", asset="USDT")` требует оба аргумента и возвращает
-`WithdrawalQuotas`: минимум и комиссия — Decimal, precision — обычное конечное
-число int/float. SDK не округляет суммы при чтении.
-
-`withdrawal_links.create()` принимает отдельный `WithdrawalLinkRequest` с обязательными
-`network` (`TON`, `BSC`, `ETH`, `BTC`, `TRX`, `SOL`), `address` до 100 символов,
-`asset` и точным `amount` (Decimal/decimal string → JSON string). Network задаётся
-явно. Необязательны `comment` до 50 символов и строковый `platform`: задавайте
-platform только если его предоставил xRocket. Пропущенные поля опускаются,
-explicit None запрещён. Client ID и callback в этот запрос не входят.
-HTTP 200 возвращает `WithdrawalLink` с необязательными `telegram_bot_link`,
-`telegram_mini_app_link`, `web_link`. Все ссылки могут отсутствовать, в Python
-это None; для сохранения omission используйте `model_dump(exclude_unset=True)`.
-Присутствующие ссылки должны быть строками: explicit null отвергается по OAS,
-проверки URL и нормализации нет, неизвестные response поля сохраняются.
-Обе модели доступны из `xrocket.pay` и `xrocket.pay.models`; async использует
-те же аргументы с `await`. SDK возвращает ссылки без открытия; это отдельная
-операция Current, отличная от `withdrawals.create()` и Legacy GET.
-После timeout создание ссылки остаётся неизвестным, автоматического повтора нет.
-
-HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `retry_after`;
-последние два поля могут отсутствовать, серверный контракт их не гарантирует.
-Автоповторов нет. Все 25 Current Pay REST операций реализованы. Stateless проверка
-Current webhook доступна отдельно от клиентов, включая typed events и unknown fallback.
-Пакет `xrocket.exchange` зарезервирован без клиента.
-
-```python
-from xrocket.pay import WebhookError, verify_webhook_signature
-
-# raw_body: исходные bytes HTTP запроса; headers: mapping имён/строковых значений.
-# webhook_secret получен отдельно из Webhook Token, это не JWT API token.
-try:
-    verify_webhook_signature(
-        raw_body=raw_body,
-        headers=headers,
-        webhook_secret=webhook_secret,
-        tolerance_ms=300_000,
-    )
-except WebhookError:
-    ...  # Отклонить запрос; JSON и business processing ещё не выполнялись.
-else:
-    ...  # Теперь приложение может разбирать исходный raw_body как JSON.
-```
-
-Подпись — Current HMAC-SHA256 от точных ASCII bytes `Signature-Timestamp`, точки
-и исходного body. Verifier не декодирует/не пересериализует JSON. Secret str кодируется
-UTF-8 без trimming/hash, bytes используются без изменения; пустой secret запрещён.
-Имена заголовков нечувствительны к регистру; значения не нормализуются. Timestamp —
-непустые ASCII digits в ms (ведущие нули сохраняются в подписи), version — ровно `v1`,
-signature — 64 hex digits любого регистра. Дубли signing headers отвергаются;
-адаптер HTTP должен сохранять дубли либо отклонять их до превращения в mapping.
-
-По умолчанию допустима разница с часами ±300 000 ms включительно. `tolerance_ms`
-принимает целое ≥0 без bool; 0 требует точного совпадения. `clock=lambda: now_ms`
-позволяет передать тестовые часы (целые неотрицательные Unix ms), по умолчанию
-используются системные часы. Подпись проверяется раньше часов/окна. Окно — политика
-SDK, не гарантия API о clock skew или retries. Stateless verifier возвращает None
-при успехе или поднимает `WebhookError`: `WebhookHeaderError`, `WebhookSignatureError`,
-`WebhookTimestampError`, `WebhookConfigurationError` (доступны из `xrocket.pay`).
-Ошибка не сохраняет входные значения в args/атрибутах/cause/context. Обычное
-форматирование ошибки не раскрывает secret/body; сторонний сбор traceback locals
-или явное логирование аргументов остаётся ответственностью приложения.
-Повторный валидный webhook внутри окна снова пройдёт проверку; dedupe по delivery
-`id` и HTTP server остаются приложению. Для typed parsing доступен безопасный путь ниже.
-
-Для типизированного разбора используйте `verify_and_decode_webhook`: он вызывает
-тот же verifier **до** UTF-8/JSON parsing и проверки DTO. После успешной подписи
-невалидный payload даёт отдельный `WebhookPayloadError`; неизвестная строка type
-или invoice event возвращает `UnknownWebhook` с доступным raw payload.
-
-```python
-from xrocket.pay import (
-    InvoiceWebhook,
-    PaymentStatusChangedWebhookData,
-    UnknownWebhook,
-    WebhookPayloadError,
-    verify_and_decode_webhook,
-)
-
-try:
-    delivery = verify_and_decode_webhook(
-        raw_body=raw_body, headers=headers, webhook_secret=webhook_secret,
-    )
-except WebhookPayloadError:
-    ...  # Подпись и окно проверены, но JSON/известный payload повреждён.
-else:
-    delivery_id = delivery.id  # Ключ dedupe приложения, не invoice.id/payment.id.
-    if isinstance(delivery, UnknownWebhook):
-        original_payload = delivery.raw_payload  # Явный доступ; может быть чувствительным.
-    elif isinstance(delivery, InvoiceWebhook):
-        if isinstance(delivery.data, PaymentStatusChangedWebhookData):
-            payment = delivery.data.payment
-            is_final = payment.finalized_at is not None
-            # status сохраняется точно; неизвестный status не означает paid/failed.
-```
-
-Ошибки подписи/headers/окна/config остаются прежними `WebhookError` subclasses.
-Invoice-only `InvoiceStatusChangedWebhookData` не требует payment. `ChequeWebhook`,
-`PayoutWebhook`, `WithdrawalWebhook` содержат в data существующие Pay DTO.
-Все envelope и invoice data DTO, `UnknownWebhook`, union `WebhookEvent` доступны
-через `xrocket.pay` и `xrocket.pay.models`. Поля/статусы будущих версий сохраняются.
-Envelope timestamp — aware datetime из JSON date-time string; signing timestamp
-в заголовке проверяется отдельно. Известные вложенные даты invoice/payment и
-internal/blockchain transactions также требуют aware date-time strings до
-преобразования в datetime: Unix numbers/numeric strings отвергаются как payload
-error, включая finalizedAt. Nullable pending/omission сохраняются; даты в unknown
-events/types/transactions и произвольных extras/callback payload остаются raw.
-У Current cheque/payout/withdrawal DTO объявленных date-time полей нет.
-JSON fractional numbers разбираются как Decimal
-без float; duplicate object keys и NaN/Infinity отвергаются политикой SDK.
-
-`raw_body` возвращает исходные проверенные bytes, `raw_payload` — отдельную копию
-JSON snapshot с исходными wire keys и Decimal. Мутации DTO не меняют snapshot.
-Обычные repr/str envelope и invoice data скрывают все поля/extras; явные dumps,
-raw свойства и доступ к вложенным REST DTO могут раскрыть чувствительные данные.
-Ошибки безопасного пути не содержат body/secret в messages/args/cause/context.
-Прямые DTO constructors/model_validate **не проверяют подпись** и не заполняют
-raw snapshots; попытка прочитать их raw свойства даёт RuntimeError.
-Повторные/out-of-order доставки допускаются: SDK не хранит delivery IDs и не
-обещает порядок. Dedupe storage и HTTP server остаются приложению.
-
-P008 добавил внутренний фундамент записи: общий sync/async transport для
-POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
-missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
-P010 — создание invoice payment address, P011 — create/update/delete cheques,
-P012 — создание одиночного payout, P013 — mass payouts с отдельными успехами/ошибками,
-P014 — создание withdrawal с обязательным caller ID, P015 — создание withdrawal link.
-Write операции проверены offline, без реальных денежных действий.
+OAS документирует HTTP 200 для всех GET. Сохранённая политика `get()` принимает
+любой 2xx, если body проходит проверку DTO. Write методы требуют точный 200,
+кроме payment address (201); оба DELETE требуют строго пустой body на 200.
+Неожиданный write 2xx или повреждённый success body вызывает `ResponseValidationError`.
 
 ## Установка для разработки
 
@@ -321,27 +65,25 @@ cd xRocket-SDK
 py -3.12 -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements-dev.lock
 .venv\Scripts\python.exe -m pip install --no-build-isolation --no-deps -e .
-.venv\Scripts\python.exe -m pytest
 ```
 
-В текущем workspace проект уже находится в `F:\xrocket-pay\xrocket-sdk`; повторно
-клонировать его туда не нужно. Локальная `.venv`, кэши, сборки, `.env`, ключи и
-настройки редакторов исключены из Git; исходники, specs, lock и workflow сохраняются.
+В текущем workspace SDK уже находится в `F:\xrocket-pay\xrocket-sdk`.
+`requirements-dev.lock` фиксирует проверенное Windows/Python 3.12 окружение;
+диапазоны зависимостей — в `pyproject.toml`. Установка `.[dev]` по диапазонам
+возможна отдельно; вся матрица версий ими не проверена. `.venv`, сборки, `.env`,
+секреты и runtime координатора исключены из Git.
 
-`requirements-dev.lock` фиксирует проверенное окружение Python 3.12 на Windows;
-диапазоны поддерживаемых зависимостей указаны в `pyproject.toml`. На других
-платформах можно установить `.venv\Scripts\python.exe -m pip install -e '.[dev]'`.
+## Чтение и lifecycle
 
 ```python
 import os
-
 from xrocket.pay import PayClient
 
-# Для публичных валют токен не нужен.
+# Публичные GET не требуют JWT.
 with PayClient(environment="testnet") as pay:
+    health = pay.health.get()
     currencies = pay.currencies.list(kind="crypto")
 
-# Нужен JWT приложения с API Version = Current в testnet-боте.
 with PayClient(
     api_token=os.environ["XROCKET_PAY_TESTNET_TOKEN"],
     environment="testnet",
@@ -355,56 +97,187 @@ with PayClient(
 ```python
 from xrocket.pay import AsyncPayClient
 
-async def main():
+async def read_rates():
     async with AsyncPayClient(environment="testnet") as pay:
-        rates = await pay.rates.get(base="USD", assets=["BTC", "ETH"])
-        for rate in rates:
-            print(rate.currency, rate.rate)
+        return await pay.rates.get(base="USD", assets=["BTC", "ETH"])
 ```
 
-Токен передаётся явно и не читается автоматически из окружения.
-Default `environment` — `mainnet`; примеры и сетевые smoke tests используют testnet.
-`http_client=` позволяет внедрить `httpx.Client` / `httpx.AsyncClient`, который
-остаётся во владении вызывающего кода. Timeout SDK по умолчанию 30 секунд;
-redirects отключены. Используйте `with` / `async with` или `close()` / `aclose()`.
+Полные исполнимые функции sync/async — в [examples/pay_read.py](examples/pay_read.py).
+Импорт примеров не выполняет I/O. Environment у клиента по умолчанию **mainnet**;
+во всех примерах задан testnet. SDK не читает token из окружения автоматически.
+JWT должен относиться к testnet приложению с API Version = Current.
 
-## Проверки
+`with` / `async with`, `close()` / `aclose()` закрывают SDK-owned HTTP-сессию.
+Переданный `http_client=` остаётся во владении вызывающего кода, его defaults
+не меняются. SDK задаёт собственные auth и timeout (default 30 секунд), игнорирует
+чужую default Authorization/auth handler, отключает redirects. После закрытия
+SDK новые запросы запрещены. Собственная или внедрённая сессия переиспользуется;
+автоматических retries, lookup, polling и pagination нет. Дополнительные политики
+внешнего HTTP transport остаются ответственностью его владельца.
+
+Все list методы читают одну страницу; конец — только `pagination.next is None`.
+Cursor непрозрачен. Invoice payments возвращает отдельную `InvoicePaymentPage`
+без total, известные internal/blockchain transactions типизированы, будущий type
+сохраняется как `UnknownInvoiceTransaction`. List date filters принимают aware
+`datetime`. Разные bounds limit/ID не унифицированы: см. [контракт](spec/pay-api.md).
+
+`Health.info/error/details` при omission равны None (unknown); [] сохраняется,
+explicit null отвергается. Отсутствующая error collection не доказывает отсутствие
+ошибок. Для roundtrip missing используйте `model_dump(exclude_unset=True)`.
+
+## Запись и неизвестный итог
+
+```python
+import os
+from decimal import Decimal
+from xrocket.pay import InvoiceCreateRequest, PayClient
+
+# Стабильный ID сохранён приложением до I/O; выполнение создаёт testnet invoice.
+with PayClient(
+    api_token=os.environ["XROCKET_PAY_TESTNET_TOKEN"],
+    environment="testnet",
+) as pay:
+    invoice = pay.invoices.create(request=InvoiceCreateRequest(
+        price_currency="USDT",
+        price_amount=Decimal("1.2500"),
+        client_invoice_id=os.environ["XROCKET_PAY_TESTNET_CLIENT_INVOICE_ID"],
+        expires_in=300_000,  # Current: миллисекунды; 0 также сохраняется.
+    ))
+```
+
+[examples/pay_write.py](examples/pay_write.py) содержит те же sync/async функции
+без top-level I/O. Они выполняют POST только при явном вызове. Проверки примеров
+используют `MockTransport`, не создают invoices/переводы/выводы на сервере.
+
+Optional request fields опускаются; explicit None для non-nullable полей
+отвергается, пустые строки/списки/объекты/0 сохраняются. Extra inputs запрещены.
+Invoice не допускает одновременно price_amount и min_payment; отсутствие обеих
+локально разрешено по OAS, принятие сервером неизвестно (PAY-008).
+Cheque password хранится как `SecretStr`, обычные repr/dumps маскируют его;
+wire body содержит пароль явно. Не логируйте wire bytes. Surrogate code points
+в request строках/ключах отвергаются до I/O; обычный Unicode/emoji сохраняется.
+
+При timeout результат записи **неизвестен**: сервер мог выполнить операцию.
+SDK не генерирует/заменяет client ID и не повторяет запрос. Сверка через явный
+retrieve по сохранённому ID — отдельный GET; not-found не доказывает безопасность
+replay. Для withdrawal create допускает client ID до 150, retrieve — только
+1–100 (PAY-016/017); lookup длинного client ID не обещается.
+
+В mass payout HTTP 200 может содержать частичные или полные item errors:
+проверяйте `success_payouts`, `error_payouts`, `has_errors`, `is_partial`.
+Порядок/дубликаты ответа сохраняются; позиционного matching нет. Сохраняйте
+уникальные client IDs каждого item, не повторяйте весь batch автоматически.
+Batch target_type ограничен `telegram_user_id` по prose при противоречивом enum;
+реальный batch limit не известен (PAY-009/010). Withdrawal link возвращает ссылки
+без открытия, даже все три ссылки могут отсутствовать; link не подтверждает вывод.
+
+## Webhooks: исходные bytes до JSON
+
+```python
+import os
+from xrocket.pay import (
+    InvoiceWebhook, PaymentStatusChangedWebhookData, UnknownWebhook,
+    WebhookError, WebhookPayloadError, verify_and_decode_webhook,
+)
+
+def receive(raw_body: bytes, headers):
+    # HTTP adapter сохраняет исходные bytes и дубли заголовков либо отклоняет дубли.
+    try:
+        delivery = verify_and_decode_webhook(
+            raw_body=raw_body,
+            headers=headers,
+            webhook_secret=os.environ["XROCKET_PAY_TESTNET_WEBHOOK_SECRET"],
+        )
+    except WebhookPayloadError:
+        raise  # Подпись валидна; известный payload/JSON повреждён.
+    except WebhookError:
+        raise  # Отклонить; business processing не начинать.
+
+    delivery_id = delivery.id  # Единственный ключ dedupe: верхний delivery id.
+    # Приложение атомарно сохраняет dedupe + обработку в своём durable storage.
+    if isinstance(delivery, UnknownWebhook):
+        return delivery_id, None  # Будущий type/event не означает успех платежа.
+    if isinstance(delivery, InvoiceWebhook) and isinstance(
+        delivery.data, PaymentStatusChangedWebhookData
+    ):
+        payment = delivery.data.payment
+        return delivery_id, payment.finalized_at is not None
+    return delivery_id, None
+```
+
+Полный локальный decoder и finality helper — в [examples/pay_webhook.py](examples/pay_webhook.py).
+Webhook secret — отдельный Webhook Token, **не JWT**. Current HMAC-SHA256 использует
+точные bytes `Signature-Timestamp + b"." + raw_body`, direct secret и version v1;
+Legacy hash transform не применяется. `verify_webhook_signature` доступен отдельно,
+без JSON parsing; `verify_and_decode_webhook` сначала проверяет подпись и окно,
+затем UTF-8/JSON/DTO. Прямые constructors DTO подпись не проверяют.
+
+Default окно ±300000 ms включительно — настраиваемая политика SDK, не гарантия API.
+Повторная доставка внутри окна снова валидна. Порядок событий не гарантируется;
+SDK не хранит IDs. Dedupe, durable business processing и HTTP server принадлежат
+приложению; invoice/payment/transaction IDs не заменяют верхний delivery id.
+
+Unknown type/invoice event → `UnknownWebhook` с raw данными. Known malformed →
+`WebhookPayloadError`. Неизвестные статусы сохраняются, успех из них не выводится.
+Payment finality — `finalized_at is not None`, это не синоним paid; paid требует
+проверки известного status отдельно. Известные вложенные даты требуют aware
+date-time strings до coercion (включая finalizedAt); numeric epochs отвергаются.
+Unknown/raw поля не интерпретируются. `raw_body`/`raw_payload` доступны явно;
+обычный repr скрыт, dumps/raw/вложенные REST DTO могут содержать чувствительные данные.
+
+## Ошибки
+
+| Ошибка / import | Значение |
+| --- | --- |
+| `xrocket.AuthenticationError` | Нет требуемого JWT до I/O (status_code=None) или HTTP 401 |
+| `xrocket.PermissionDeniedError` / `NotFoundError` / `RateLimitError` | HTTP 403 / 404 / 429 |
+| `xrocket.ServerError` / `APIError` | HTTP ≥500 / прочие non-2xx, включая redirect |
+| `xrocket.RequestTimeoutError` / `TransportError` | Timeout / другая ошибка HTTP transport |
+| `xrocket.ResponseValidationError` | Невалидный success body или неожиданный write success status |
+| `xrocket.pay.WebhookError` subclasses | Headers, signature, timestamp, configuration; payload error отдельно |
+| `ValueError`, `TypeError`, Pydantic `ValidationError` | Локальная конфигурация/inputs до I/O |
+
+`APIError` сохраняет `status_code`, object `problem`, optional `request_id` /
+`retry_after`. Metadata не гарантирована сервером; не-JSON error сохраняет status,
+problem остаётся {}. Raw response/body и произвольные headers не сохраняются.
+Сообщения HTTP ошибок общие, но явный problem/transport `__context__` могут
+содержать чувствительные данные. Webhook ошибки safe path очищают cause/context;
+захват traceback locals сторонними средствами и явное логирование inputs не покрыты.
+Retry-After не запускает автоматический retry. Duplicate client ID error не скрывается.
+
+## Проверки и границы подтверждения
 
 ```powershell
-.venv\Scripts\python.exe -m pytest
+.venv\Scripts\python.exe -m pytest -o asyncio_default_test_loop_scope=session
 .venv\Scripts\python.exe -m ruff check .
 .venv\Scripts\python.exe -m mypy
 .venv\Scripts\python.exe -m build --no-isolation
 ```
 
-Unit tests используют `httpx.MockTransport`, сеть и API-токены не нужны.
-Отдельно можно явно запустить testnet smoke:
+Session-loop override — workaround Windows WinError 10055; permanent config не меняется.
+Offline tests используют синтетические fixtures, MockTransport и synthetic signing,
+включая исполнение примеров. Сеть/секреты не нужны. [Ledger](spec/pay-readiness-2026-10-18.md)
+фиксирует новый запуск отдельно от старых evidence и указывает непроверенные платформы.
 
-```powershell
-$env:XROCKET_RUN_LIVE = '1'
-.venv\Scripts\python.exe -m pytest -m live
-```
+Live GET opt-in: `XROCKET_RUN_LIVE=1` + `pytest -m live`; harness содержит 40 sync/async
+cases для 15 GET. Private tests используют только явно настроенные testnet JWT/ID/quota
+fixtures; отсутствие данных даёт independent skips. Обычный pytest исключает live
+даже при выставленном флаге. Variables и gates — в [плане](spec/test-plan.md).
 
-Live harness содержит 40 sync/async cases для всех 15 GET: public currencies/rates/
-health и private app/list/retrieve/payments/quotas. Private tests требуют только
-явный `XROCKET_PAY_TESTNET_TOKEN`; без него пропускаются. ID для retrieve/payments
-и network/asset для quotas задаются отдельно, не берутся из списка аккаунта.
-Без `XROCKET_RUN_LIVE=1` сетевые tests пропускаются даже при наличии JWT;
-обычный pytest исключает marker live даже при включённом флаге.
+Исторически public testnet currencies/rates прошли, health сначала выявил PAY-018,
+затем прошёл после P019. Private 34 skips без JWT/fixtures не являются подтверждением.
+Новый P018 pass — только offline: live API, mutations/webhooks, mainnet, дедупликация,
+replay/finality server guarantees и вся матрица Python/OS не проверялись.
+Nullable overrides, precision/limit/4KB semantics и другие unresolved API facts —
+в [PAY issues/open questions](spec/pay-api.md#12-открытые-вопросы-до-расширения-sdk).
 
-Переменные fixtures, команды и skips — в [плане проверок](spec/test-plan.md).
-На Windows при WinError 10055 можно добавить
-`-o asyncio_default_test_loop_scope=session`.
-P007 подтвердила currencies/rates и обнаружила status-only health response
-(PAY-018). P019 добавила поддержку отсутствующих component fields; первоначальный
-failure и последующие проверки записаны в [журнале live](spec/live-verification.md).
-Private GET не подтверждены без JWT.
+## Источники
 
-## Основные источники
-
-[Главная документации](https://docs.xrocket.exchange/) по-прежнему ссылается на
-[Legacy Swagger](https://pay.xrocket.exchange/api). Для новой интеграции опираемся
-на [Current Pay](https://docs.xrocket.exchange/api/pay/pay-api-overview),
-[Current OpenAPI](https://pay.api.xrocket.exchange/api/docs-json) и проверенные
-[адреса mainnet/testnet](https://docs.xrocket.exchange/api/pay/reference/pay-rest-api).
-Схемы сохранены в репозитории; противоречия перечислены, исходные JSON не исправлялись.
+Сохранённые [Current/Legacy OAS и provenance](spec/openapi/README.md) задают контракт
+этого среза; snapshots вручную не меняются и не объявляются текущим live API.
+Официальные [Current overview](https://docs.xrocket.exchange/api/pay/pay-api-overview),
+[REST reference](https://docs.xrocket.exchange/api/pay/reference/pay-rest-api) и
+[Current OpenAPI](https://pay.api.xrocket.exchange/api/docs-json) перечислены как
+источники snapshot. [Главная документации](https://docs.xrocket.exchange/) также
+ссылается на [Legacy Swagger](https://pay.xrocket.exchange/api); Legacy auth/DTO/units
+в Current не переносятся.
