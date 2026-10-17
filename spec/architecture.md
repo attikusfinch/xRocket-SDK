@@ -231,6 +231,15 @@ P018 проверила AST imports, runtime сигнатуры и build artifac
 Wheel содержит runtime и `py.typed`, sdist также содержит offline tests, specs,
 workflow и исполнимые examples; локальное состояние autopilot исключено.
 
+X001 завершила [Exchange discovery](exchange-api.md): отдельный неизменённый OAS,
+26 planned REST operations и [WebSocket contract](exchange-websocket.md).
+Первый следующий срез X002 — только public symbols list/retrieve. Существующий
+core уже обслуживает эти `/api/` GET с exact200 adapter, ownership и auth isolation;
+изменять Pay/runtime/core ради исследования не требуется. Exchange response DTO,
+Decimal aliases и будущая numbered pagination остаются продукту. Private account,
+orders, funding, transfers и WS выделены в самостоятельные contract gates;
+новых Exchange clients в X001 нет, новые карточки вне сохранённого autopilot scope.
+
 ## Основания решений
 
 Сравнение [Stripe, OpenAI, Coinbase и CCXT](sdk-comparison.md) описывает реальные

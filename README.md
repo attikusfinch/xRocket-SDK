@@ -3,13 +3,14 @@
 Python 3.11+, `xrocket-sdk` 0.1.0.dev0, **draft**, без публикации в PyPI.
 Реализованы все 25 REST операций сохранённого Current Pay контракта и локальная
 проверка/типизация webhooks. Exchange пока содержит только namespace; Legacy
-клиента нет. Offline готовность Pay позволяет отдельно исследовать Exchange,
-но не означает production verification или готовность денежных end-to-end сценариев.
+клиента нет. Контракт Exchange исследован отдельно; первый срез ещё запланирован.
+Offline готовность Pay не означает production verification или готовность денежных end-to-end сценариев.
 
 - [Матрица 25 операций: API, owner, wire, tests и источники](spec/pay-operation-matrix.md)
 - [Итоговый readiness ledger, 2026-10-18](spec/pay-readiness-2026-10-18.md)
 - [Полный контракт, ограничения DTO и PAY-001–018](spec/pay-api.md)
 - [Архитектура](spec/architecture.md), [план проверок](spec/test-plan.md)
+- [Исследование Exchange: snapshot, REST/WS и первый следующий срез](spec/exchange-api.md)
 - [Новая сессия](START.md), [очередь](workflow/tasks.json), [управляемый цикл](workflow/AUTOPILOT.md)
 - История: [первый срез](spec/verification.md), [live testnet журнал](spec/live-verification.md)
 

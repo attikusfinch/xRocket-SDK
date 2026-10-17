@@ -102,7 +102,10 @@
   Correction P017-02 проверяет также все известные вложенные date-time wire
   поля до coercion: numeric epochs/strings не могут ложно установить finality.
   REST DTO и date-looking unknown/raw данные не менялись.
-- `xrocket.exchange` содержит только зарезервированный namespace.
+- `xrocket.exchange` содержит только зарезервированный namespace. X001 сохранила
+  отдельный Exchange OAS и [контракт](../spec/exchange-api.md): 26 planned REST
+  operations, отдельный [WS lifecycle](../spec/exchange-websocket.md), первый будущий
+  public срез X002 — только symbols list/retrieve. Клиента Exchange пока нет.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
 - Управляемый цикл: текущий чат-координатор, отдельные workers/reviewers, 5 минут,
   automatic commit/push после tests и принятого review. Scope P010–P018/X001.
@@ -253,7 +256,17 @@ files) прошли. Включены 9 meaningful example cases через Mock
 signing; они входят в full total. Итоговые build/wheel evidence и ограничения —
 в [датированном readiness ledger](../spec/pay-readiness-2026-10-18.md) и
 [P018 handoff](handoffs/P018-01.md). README/примеры актуальны, runtime не менялся.
-Это candidate для независимого review координатора; push/live не выполнялись.
+P018 затем принята независимым review и опубликована координатором до X001;
+evidence — [P018-01 review](reviews/P018-01.md). Worker P018 push/live не выполнял.
+
+X001: [handoff](handoffs/X001-01.md) фиксирует новый immutable Exchange snapshot
+(SHA-256 71d4ef2e…12f969), 23 paths / 26 REST operations / 53 schemas, source provenance,
+auth/error/DTO/pagination границы и несовпадения reference/OAS. Очередь v2 различает
+product/method/path: 25 Pay owners сохранены, 26 Exchange owners — только planned
+coverage. Изменённый workflow checker проверен 40 целевыми tests, Ruff и strict mypy
+для tooling; SDK runtime/API/core и исторические evidence не менялись, полный SDK
+suite/build/live business calls не повторялись. Candidate ожидает независимого review.
+X002–X014 — todo вне сохранённого scope; private/WS gates сначала уточняют контракт.
 
 ## Ограничения и ближайшее направление
 
@@ -270,16 +283,17 @@ PAY-016: create clientWithdrawalId допускает 150, GET — 100; обще
 не выполнялись: testnet JWT отсутствует; независимые skips по отсутствующим ID
 и quota pair проверены offline. Только `XROCKET_PAY_TESTNET_TOKEN`, без fallback.
 Денежных live операций, production проверки, PyPI публикации не было.
-Pay offline scope завершён; ближайшее направление — отдельный Exchange discovery.
+Pay offline scope завершён; Exchange discovery X001 завершён без реализации клиента.
 Архитектура остаётся draft, но существующий public API сохраняется при расширении.
 
 Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
 PAY-009/010 остаются открыты: server batch limit/empty acceptance, остальные
 batch target types, атомарность и deduplication/replay semantics live не подтверждены.
-После принятия P018 следующая доступная задача — X001 (исследовать Exchange);
-она в P018 не начиналась. Продолжение — через `tools/session.py next`,
-чтение её карточки и handoff P018 по обычному протоколу.
+После X001 первая доступная задача очереди — X002 (две public symbols операции).
+Она и X003–X014 вне scope текущего управляемого цикла: его расширение автоматически
+не разрешено. X001 была последней сохранённой карточкой; review/push и остановку
+этого цикла выполняет координатор. Ни одна новая Exchange карточка здесь не начата.
 P019 завершена и включена в зависимости финальной P018.
 Write foundation P008 завершён до write ресурсов. Новые API детали
 исследуются в соответствующей карточке, а не угадываются на весь roadmap.

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "tasks": [
     {
       "id": "BASE",
@@ -11,27 +11,33 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/api/v1/app-info"
+          "path": "/api/v1/app-info",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/balances"
+          "path": "/api/v1/balances",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/currencies"
+          "path": "/api/v1/currencies",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/rates"
+          "path": "/api/v1/rates",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/invoices"
+          "path": "/api/v1/invoices",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/invoice"
+          "path": "/api/v1/invoice",
+          "product": "pay"
         }
       ]
     },
@@ -80,7 +86,8 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/health"
+          "path": "/health",
+          "product": "pay"
         }
       ]
     },
@@ -96,7 +103,8 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/api/v1/invoice/payments"
+          "path": "/api/v1/invoice/payments",
+          "product": "pay"
         }
       ]
     },
@@ -112,11 +120,13 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/api/v1/cheques"
+          "path": "/api/v1/cheques",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/cheque"
+          "path": "/api/v1/cheque",
+          "product": "pay"
         }
       ]
     },
@@ -132,11 +142,13 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/api/v1/payouts"
+          "path": "/api/v1/payouts",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/payout"
+          "path": "/api/v1/payout",
+          "product": "pay"
         }
       ]
     },
@@ -152,15 +164,18 @@
       "operations": [
         {
           "method": "GET",
-          "path": "/api/v1/withdrawals"
+          "path": "/api/v1/withdrawals",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/withdrawal"
+          "path": "/api/v1/withdrawal",
+          "product": "pay"
         },
         {
           "method": "GET",
-          "path": "/api/v1/withdrawal-quotas"
+          "path": "/api/v1/withdrawal-quotas",
+          "product": "pay"
         }
       ]
     },
@@ -214,11 +229,13 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/invoices"
+          "path": "/api/v1/invoices",
+          "product": "pay"
         },
         {
           "method": "DELETE",
-          "path": "/api/v1/invoice"
+          "path": "/api/v1/invoice",
+          "product": "pay"
         }
       ]
     },
@@ -245,7 +262,8 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/invoices/payments/address"
+          "path": "/api/v1/invoices/payments/address",
+          "product": "pay"
         }
       ]
     },
@@ -262,15 +280,18 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/cheques"
+          "path": "/api/v1/cheques",
+          "product": "pay"
         },
         {
           "method": "PUT",
-          "path": "/api/v1/cheques"
+          "path": "/api/v1/cheques",
+          "product": "pay"
         },
         {
           "method": "DELETE",
-          "path": "/api/v1/cheques"
+          "path": "/api/v1/cheques",
+          "product": "pay"
         }
       ]
     },
@@ -287,7 +308,8 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/payouts"
+          "path": "/api/v1/payouts",
+          "product": "pay"
         }
       ]
     },
@@ -303,7 +325,8 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/mass-payouts"
+          "path": "/api/v1/mass-payouts",
+          "product": "pay"
         }
       ]
     },
@@ -320,7 +343,8 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/withdrawals"
+          "path": "/api/v1/withdrawals",
+          "product": "pay"
         }
       ]
     },
@@ -336,7 +360,8 @@
       "operations": [
         {
           "method": "POST",
-          "path": "/api/v1/withdrawal-link"
+          "path": "/api/v1/withdrawal-link",
+          "product": "pay"
         }
       ]
     },
@@ -388,11 +413,296 @@
     {
       "id": "X001",
       "title": "Исследовать контракт Exchange и спланировать первый срез",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P018"
       ],
       "card": "tasks/X001.md",
+      "handoff": "handoffs/X001-01.md",
+      "operations": []
+    },
+    {
+      "id": "X002",
+      "title": "Public symbols и самостоятельные Exchange clients",
+      "status": "todo",
+      "depends_on": [
+        "X001"
+      ],
+      "card": "tasks/X002.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/symbols"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/symbols/{symbol}"
+        }
+      ]
+    },
+    {
+      "id": "X003",
+      "title": "Public assets Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X003.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/assets"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/assets/{asset}"
+        }
+      ]
+    },
+    {
+      "id": "X004",
+      "title": "Public ticker Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X004.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/ticker/{tickerType}"
+        }
+      ]
+    },
+    {
+      "id": "X005",
+      "title": "Public candles Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X005.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/candles"
+        }
+      ]
+    },
+    {
+      "id": "X006",
+      "title": "Public orderbook Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X006.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/orderbook"
+        }
+      ]
+    },
+    {
+      "id": "X007",
+      "title": "Public trades Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X007.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/trades"
+        }
+      ]
+    },
+    {
+      "id": "X008",
+      "title": "Public rates Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X008.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/rates"
+        }
+      ]
+    },
+    {
+      "id": "X009",
+      "title": "Exchange health по отдельному контракту",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X009.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/health"
+        }
+      ]
+    },
+    {
+      "id": "X010",
+      "title": "Contract gate: private Account Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X010.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/trading/balances"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/trade-fees"
+        }
+      ]
+    },
+    {
+      "id": "X011",
+      "title": "Contract gate: private Orders Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X011.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/orders/active"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/order"
+        },
+        {
+          "product": "exchange",
+          "method": "DELETE",
+          "path": "/api/v1/order"
+        },
+        {
+          "product": "exchange",
+          "method": "POST",
+          "path": "/api/v1/orders"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/orders/history"
+        },
+        {
+          "product": "exchange",
+          "method": "POST",
+          "path": "/api/v1/orders/estimate"
+        }
+      ]
+    },
+    {
+      "id": "X012",
+      "title": "Contract gate: private Funding Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X012.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/funding/balances"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/funding/withdrawal-quotas"
+        },
+        {
+          "product": "exchange",
+          "method": "POST",
+          "path": "/api/v1/accounts/funding/withdrawals"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/funding/withdrawals"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/funding/withdrawal"
+        }
+      ]
+    },
+    {
+      "id": "X013",
+      "title": "Contract gate: private Transfers Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X013.md",
+      "handoff": null,
+      "operations": [
+        {
+          "product": "exchange",
+          "method": "POST",
+          "path": "/api/v1/accounts/transfers"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/transfers"
+        },
+        {
+          "product": "exchange",
+          "method": "GET",
+          "path": "/api/v1/accounts/transfer"
+        }
+      ]
+    },
+    {
+      "id": "X014",
+      "title": "Contract gate: WebSocket lifecycle Exchange",
+      "status": "todo",
+      "depends_on": [
+        "X002"
+      ],
+      "card": "tasks/X014.md",
       "handoff": null,
       "operations": []
     }

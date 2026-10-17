@@ -1,0 +1,250 @@
+{
+  "checked_timezone": "Asia/Tashkent",
+  "scope": "Public official documentation only. Hashes identify fetched HTML, not stability guarantees. Raw HTML is not the immutable OpenAPI snapshot. No credentials or business endpoints requested. Initial concurrent httpx fetch failed ConnectTimeout; these entries record sequential urllib verification with Mozilla UA.",
+  "sources": [
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/exchange-api-overview",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:31.871542+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/exchange-api-overview",
+      "http_status": 200,
+      "bytes": 21588,
+      "sha256": "6dffe8f6e91bda014367648b55916eca20c56097c0f4094b128952b3cb995c04",
+      "heading_anchors": [
+        "theme-svg-external-link"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/reference/exchange-rest-api",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:33.286422+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/reference/exchange-rest-api",
+      "http_status": 200,
+      "bytes": 54862,
+      "sha256": "2a2c1fef5b986b451c2199274b7591645f2bb3eeeabd6325d5b52d48fa2028d0",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "base-url",
+        "authorization",
+        "entities",
+        "requestresponse-example",
+        "methods"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/ru/api/exchange/reference/http/xrocket-exchange-api",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:40.714015+00:00",
+      "final_url": "https://docs.xrocket.exchange/ru/api/exchange/reference/http/xrocket-exchange-api",
+      "http_status": 200,
+      "bytes": 49177,
+      "sha256": "7eba22646bb5b998211fc156c8a6d25bb8225e0bd91cc6ecaa68f5757ce872b8",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "авторизация",
+        "сущности",
+        "пример-запросаответа",
+        "методы"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/guides/getting-started/account-setup",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:40.972781+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/guides/getting-started/account-setup",
+      "http_status": 200,
+      "bytes": 31046,
+      "sha256": "cf553205e51795e92b461a24df5332ec97c5cff85b8688f81aaad54fb8750236",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "authorization",
+        "how-to-authorize-a-request",
+        "renewing-authorization-token"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/guides/getting-started/testing",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:41.290579+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/guides/getting-started/testing",
+      "http_status": 200,
+      "bytes": 26577,
+      "sha256": "b5e84265c22df952dcc0a712fd4e89e1e947ef80e289b98be1d208f48d959904",
+      "heading_anchors": [
+        "theme-svg-external-link"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/guides/error-handling",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:41.542192+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/guides/error-handling",
+      "http_status": 200,
+      "bytes": 29329,
+      "sha256": "b81acdc730ec3521b1270781276d39c0f92c3e0bb8b3380cca5babfb1a5203a7",
+      "heading_anchors": [
+        "theme-svg-external-link"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/reference/http/exchange-market-data-controller-get-symbol",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:41.868624+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/reference/http/exchange-market-data-controller-get-symbol",
+      "http_status": 200,
+      "bytes": 26083,
+      "sha256": "dc77c43b6a5913889f5fcf539fe00f9fb6d1e096546fb2836cd7867b313b075b",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request",
+        "responses"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/reference/http/exchange-market-data-controller-get-symbols",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:42.110647+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/reference/http/exchange-market-data-controller-get-symbols",
+      "http_status": 200,
+      "bytes": 25528,
+      "sha256": "72603b8db8cba75007baa69787ebee8b629ddbbdb01cec13a97b49de4b30f7bd",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request",
+        "responses"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:42.381458+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket",
+      "http_status": 200,
+      "bytes": 60606,
+      "sha256": "d8b968dd27f7ebd8f58da4f2de6816910765debaa43c9c78141fa22af330f85a",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "how-to-connect",
+        "authentication",
+        "message-format",
+        "channels",
+        "methods",
+        "unsubscribe",
+        "unsubscribe-all",
+        "error-handling",
+        "our-error-codes",
+        "error-response-format"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/public-ticker",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:42.660463+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/public-ticker",
+      "http_status": 200,
+      "bytes": 40991,
+      "sha256": "1390a3443ba54e12d16ff3790e36d7ad5aa8ad7552823f5066fdf35ffef97cd9",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request-parameters",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/public-all-tickers",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:42.988194+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/public-all-tickers",
+      "http_status": 200,
+      "bytes": 40337,
+      "sha256": "cd5286d1da3e001ba589b6c5abbc7b90b6d78f7fd7d74989907f9d45c80a6b51",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request-parameters",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/public-orderbook",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:43.240355+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/public-orderbook",
+      "http_status": 200,
+      "bytes": 44754,
+      "sha256": "58690685b5b4ff0febdfc7a8812e57202d024067d46f298bfb87afb41cfd0efd",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request-parameters",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/public-trades",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:43.524198+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/public-trades",
+      "http_status": 200,
+      "bytes": 35942,
+      "sha256": "3f511e736fec748c2cac12d703aec5fbcb8dce0e3a9a5ea167586834efff6b12",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request-parameters",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/public-candles",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:43.808678+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/public-candles",
+      "http_status": 200,
+      "bytes": 43138,
+      "sha256": "72e4f85b031cf446646f4568caa0fc98abd4051589b6df0beab66e83812b6f46",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "request-parameters",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/private-balances",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:44.073710+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/private-balances",
+      "http_status": 200,
+      "bytes": 41411,
+      "sha256": "e78d4dc7a92949dd392efb35206eabe1ed57d711b855f13d3f93e078ba112ffd",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "response",
+        "response-parameters"
+      ]
+    },
+    {
+      "url": "https://docs.xrocket.exchange/api/exchange/websocket/private-active-orders",
+      "checked_date": "2026-10-18",
+      "retrieved_at_utc": "2026-10-17T22:53:44.342706+00:00",
+      "final_url": "https://docs.xrocket.exchange/api/exchange/websocket/private-active-orders",
+      "http_status": 200,
+      "bytes": 85815,
+      "sha256": "1e870bc38bdc2b2624717f4517c6d756bfa72e5826e4c0456bc234cb1fbf92d4",
+      "heading_anchors": [
+        "theme-svg-external-link",
+        "responses",
+        "limit-order",
+        "limit-order-response-parameters",
+        "market-order",
+        "market-order-response-parameters",
+        "stop-market-order",
+        "stop-market-order-response-parameters",
+        "stop-limit-order",
+        "stop-limit-order-response-parameters"
+      ]
+    }
+  ]
+}

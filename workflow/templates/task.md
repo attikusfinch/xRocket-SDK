@@ -16,7 +16,8 @@
 ## Сделать
 
 - Конкретные методы, модели и границы изменения.
-- Для Pay endpoint укажи HTTP method/path и добавь operation в manifest ровно один раз.
+- Для REST endpoint укажи product (`pay` или `exchange`), HTTP method/path и
+  добавь operation в очередь ровно один раз внутри продукта, строго по его snapshot.
 - Для поддержки/рефакторинга `operations: []` (не дублируй coverage ресурса).
 
 ## Вне scope
@@ -32,5 +33,10 @@
 В `tasks.json` добавь {id, title, status: "todo", depends_on, card, handoff: null,
 operations: []}. ID не переиспользуй. Большой scope разбей на независимые результаты
 до реализации, не прячь несколько сессий внутри одной карточки.
-Сейчас operation registry/checker относится к Pay. Для Exchange сначала выполни
-X001: исследуй контракт и расширь учёт операций без подмены Pay snapshot.
+Очередь v2 использует `operations: [{"product": "exchange", "method": "GET",
+"path": "/api/v1/symbols"}]`; для Pay аналогично `product: "pay"`. Checker отдельно
+проверяет все 25 Pay / 26 Exchange snapshot operations. Planned ownership может
+принадлежать contract gate; при последующем разбиении передай его новым карточкам
+без дубликатов. Оно не доказывает runtime поддержку. WebSocket не является REST
+operation: отдельная карточка с `operations: []`. Новая карточка автоматически
+не расширяет сохранённый scope управляемого цикла.

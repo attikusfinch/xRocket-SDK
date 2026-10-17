@@ -1,6 +1,7 @@
 # Зафиксированные источники
 
-Дата загрузки: **2026-10-17**. JSON сохранены без изменений. Метаданные и SHA-256 —
+Pay загружен **2026-10-17**, Exchange — **2026-10-18 (Asia/Tashkent)**.
+JSON сохранены без изменений. Метаданные и SHA-256 —
 в [manifest.json](manifest.json). Снимки нужны для воспроизводимого проектирования
 и contract tests; текущий сервер может отличаться от них.
 
@@ -8,6 +9,7 @@
 |---|---|---|---|
 | [pay-current.json](pay-current.json) | [Current OAS](https://pay.api.xrocket.exchange/api/docs-json) | 1.0.0 | Целевой Pay API, 25 операций |
 | [pay-legacy.json](pay-legacy.json) | [Legacy OAS](https://pay.xrocket.exchange/api-json) | 1.3.1 | Сравнение миграции, 20 операций |
+| [exchange-current.json](exchange-current.json) | [Exchange OAS](https://exchange.api.xrocket.exchange/api/docs-json) | 1.0.0 | Exchange discovery, 26 planned operations; клиента ещё нет |
 
 Одинаковая/большая цифра версии не означает более новый контракт: Legacy 1.3.1
 и Current 1.0.0 — разные API. Выбирать API по сравнению этих чисел нельзя.
@@ -20,6 +22,12 @@ Current OAS не содержит base URLs (`servers: []`). Они взяты �
 
 Из narrative-документации не переносим примеры с `.pp` и `/transfer`: список
 методов сверяется с живой Current OAS (`/payouts`). Подробности и открытые вопросы —
-в [контракте Pay](../pay-api.md). Полная Exchange OAS будет зафиксирована на этапе
-Exchange; пока исследована граница REST/WebSocket и пагинация по официальной
-[Exchange reference](https://docs.xrocket.exchange/api/exchange/reference/exchange-rest-api).
+в [контракте Pay](../pay-api.md).
+
+Exchange snapshot получен через официальный Swagger и сверку raw JSON с его
+встроенным swaggerDoc. Discovery chain и исходные URLs — в manifest;
+[контракт и первый срез](../exchange-api.md), [REST inventory](../exchange-rest-inventory.md),
+[WebSocket lifecycle](../exchange-websocket.md) и
+[source ledger](../exchange-sources-2026-10-18.json) отделяют доказанные факты
+от открытых вопросов. `servers: []` и version1.0.0 не объединяют продукты:
+Exchange origins взяты из его reference, а auth/DTO/pagination остаются отдельными.

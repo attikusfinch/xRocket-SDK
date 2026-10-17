@@ -16,5 +16,27 @@
     "api_version": "1.3.1",
     "sha256": "f51bd40b5aa437c576a9b610e9d597b57bcdd114a78dc18785c1824ce5e5fa26",
     "bytes": 56481
+  },
+  {
+    "file": "exchange-current.json",
+    "source": "https://exchange.api.xrocket.exchange/api/docs-json",
+    "retrieved_date": "2026-10-18",
+    "retrieved_at_utc": "2026-10-17T22:50:12.757717+00:00",
+    "title": "xRocket Exchange API",
+    "api_version": "1.0.0",
+    "sha256": "71d4ef2e77273606ab63959434e8ad9007c3f8268d4e8ef2a647e2c9d112f969",
+    "bytes": 174290,
+    "http_status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "final_url": "https://exchange.api.xrocket.exchange/api/docs-json",
+    "discovery": [
+      "https://docs.xrocket.exchange/api/exchange/exchange-api-overview",
+      "https://docs.xrocket.exchange/api/exchange/reference/exchange-rest-api",
+      "https://docs.xrocket.exchange/ru/api/exchange/reference/http/xrocket-exchange-api",
+      "https://exchange.api.xrocket.exchange/api/docs/",
+      "https://exchange.api.xrocket.exchange/api/docs/swagger-ui-init.js"
+    ],
+    "discovery_note": "Current EN reference mentions Swagger without a link. Official RU reference links Swagger; HTML scripts link swagger-ui-init.js, which embeds swaggerDoc. Conventional Nest raw JSON URL verified HTTP200 and parsed equality with embedded swaggerDoc; snapshot stores unmodified HTTP response body.",
+    "swagger_init_sha256": "03f72ec498ffed9ffcc49f578b7c7168216e21eb29587160af24b0970cd9992b"
   }
 ]

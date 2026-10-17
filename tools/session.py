@@ -8,12 +8,13 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / "workflow"
 STATUSES = {"todo", "in_progress", "blocked", "done"}
 HTTP_METHODS = {"get", "post", "put", "patch", "delete", "head", "options", "trace"}
+SNAPSHOT_FILES = {"pay": "pay-current.json", "exchange": "exchange-current.json"}
 
 
 class WorkflowError(Exception):
@@ -27,16 +28,43 @@ def require(condition: bool, message: str) -> None:
 
 def workflow_file(value: Any) -> Path:
     require(isinstance(value, str) and bool(value), "Expected a nonempty workflow path")
-    path = (WORKFLOW / value).resolve()
+    path = (WORKFLOW / cast(str, value)).resolve()
     require(path.is_relative_to(WORKFLOW.resolve()), f"Path escapes workflow: {value}")
     require(path.is_file(), f"Missing file: {path}")
     require(bool(path.read_text(encoding="utf-8-sig").strip()), f"Empty file: {path}")
     return path
 
 
+def snapshot_operations() -> dict[str, set[tuple[str, str]]]:
+    """Read each product's REST inventory from its fixed, independent snapshot."""
+    inventories: dict[str, set[tuple[str, str]]] = {}
+    for product, filename in SNAPSHOT_FILES.items():
+        snapshot = ROOT / "spec" / "openapi" / filename
+        require(snapshot.is_file(), f"Missing {product} snapshot: {snapshot}")
+        schema = json.loads(snapshot.read_text(encoding="utf-8"))
+        require(isinstance(schema, dict), f"Invalid {product} snapshot document")
+        paths = schema.get("paths")
+        require(isinstance(paths, dict), f"Invalid paths in {product} snapshot")
+        operations: set[tuple[str, str]] = set()
+        for path, item in paths.items():
+            require(
+                isinstance(path, str) and path.startswith("/") and isinstance(item, dict),
+                f"Invalid path item in {product} snapshot: {path}",
+            )
+            operations.update((method.upper(), path) for method in item if method in HTTP_METHODS)
+        require(bool(operations), f"No REST operations in {product} snapshot")
+        if product == "pay":
+            require(
+                len(operations) == 25,
+                f"Pay snapshot must contain 25 operations: {len(operations)}",
+            )
+        inventories[product] = operations
+    return inventories
+
+
 def load_tasks() -> list[dict[str, Any]]:
     document = json.loads((WORKFLOW / "tasks.json").read_text(encoding="utf-8-sig"))
-    require(isinstance(document, dict) and document.get("version") == 1, "Unknown queue version")
+    require(isinstance(document, dict) and document.get("version") == 2, "Unknown queue version")
     tasks = document.get("tasks")
     require(isinstance(tasks, list) and bool(tasks), "tasks must be a nonempty array")
     by_id: dict[str, dict[str, Any]] = {}
@@ -100,31 +128,37 @@ def load_tasks() -> list[dict[str, Any]]:
                 f"{task_id}: dependencies must be done before starting/completing",
             )
 
-    schema = json.loads((ROOT / "spec/openapi/pay-current.json").read_text(encoding="utf-8"))
-    expected = {
-        (method.upper(), path)
-        for path, item in schema["paths"].items()
-        for method in item
-        if method in HTTP_METHODS
-    }
-    owners: dict[tuple[str, str], str] = {}
+    inventories = snapshot_operations()
+    owners: dict[tuple[str, str, str], str] = {}
     for task in tasks:
         for operation in task["operations"]:
             require(isinstance(operation, dict), f"Invalid operation in {task['id']}")
+            product = operation.get("product")
+            require(
+                isinstance(product, str) and product in SNAPSHOT_FILES,
+                f"Operation requires known product (pay/exchange): {task['id']}",
+            )
             method, path = operation.get("method"), operation.get("path")
             require(
                 isinstance(method, str) and isinstance(path, str),
                 f"Operation requires method/path: {task['id']}",
             )
-            key = (method, path)
-            require(key in expected, f"Operation absent from Pay snapshot: {key}")
+            key = (product, method, path)
+            require(
+                (method, path) in inventories[product],
+                f"Operation absent from {product} snapshot: {key}",
+            )
             require(key not in owners, f"Duplicate operation ownership: {key}")
             owners[key] = task["id"]
-    require(
-        set(owners) == expected,
-        f"Pay operations missing from queue: {sorted(expected - owners.keys())}",
-    )
-    return tasks
+    for product, expected in inventories.items():
+        covered = {
+            (method, path) for owner_product, method, path in owners if owner_product == product
+        }
+        require(
+            covered == expected,
+            f"{product.capitalize()} operations missing from queue: {sorted(expected - covered)}",
+        )
+    return cast(list[dict[str, Any]], tasks)
 
 
 def available(tasks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -174,7 +208,8 @@ def main() -> int:
         if args.command in {"prompt", "review"}:
             require(bool(args.task_id), f"{args.command} requires a task ID")
             task = next((t for t in tasks if t["id"] == args.task_id), None)
-            require(task is not None, f"Unknown task: {args.task_id}")
+            if task is None:
+                raise WorkflowError(f"Unknown task: {args.task_id}")
             if args.command == "prompt":
                 require(
                     task["status"] in {"todo", "in_progress"},
@@ -192,10 +227,14 @@ def main() -> int:
         elif args.command == "check":
             counts = Counter(t["status"] for t in tasks)
             print(f"Queue OK: {len(tasks)} tasks; {dict(counts)}")
-            print(
-                "Pay snapshot operations: all covered exactly once "
-                "(planned coverage, not runtime support)."
+            operation_counts = Counter(
+                operation["product"] for task in tasks for operation in task["operations"]
             )
+            for product in SNAPSHOT_FILES:
+                print(
+                    f"{product.capitalize()} snapshot operations: {operation_counts[product]}, "
+                    "all covered exactly once (planned coverage, not runtime support)."
+                )
             print("Ready: " + (", ".join(t["id"] for t in available(tasks)) or "none"))
         else:
             active = next((t for t in tasks if t["status"] == "in_progress"), None)
