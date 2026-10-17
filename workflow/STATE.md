@@ -7,8 +7,9 @@
 
 - Python SDK `xrocket-sdk` 0.1.0.dev0, `src` layout, HTTPX/Pydantic, Python 3.11+.
 - `PayClient` / `AsyncPayClient`: app, cheques, currencies, health, rates, invoices,
-  payouts, withdrawals. Реализована 21 из 25 Current Pay операций:
-  все 15 GET, invoice create/delete, создание payment address и cheque create/update/delete.
+  payouts, withdrawals. Реализованы 22 из 25 Current Pay операций:
+  все 15 GET, invoice create/delete, создание payment address, cheque create/update/delete
+  и создание одиночного payout.
 - `health.get()` публичен; invoices поддерживают list/retrieve/payments, cheques
   и payouts — list/retrieve, withdrawals — list/retrieve/quotas.
   Каждый list читает одну страницу. Invoice payments имеют typed transactions
@@ -55,6 +56,13 @@
 - Pay-модели разделены по реализованным ресурсам в `pay/models/`, с отдельными
   `_base` (response config/Money) и pagination. Прежние public imports
   из `xrocket.pay.models` и `xrocket.pay` сохранены.
+- P012: `payouts.create(request=PayoutCreateRequest(...))` возвращает существующий
+  Payout только на 200. Required target/max100, target_type enum, asset и точный
+  amount; optional client ID/max50, description без schema max и отдельный
+  PayoutCallbackRequest (URL/max500, payload object). Omission сохраняется,
+  explicit None запрещён. Client ID не генерируется и не меняется, duplicate
+  API error не скрывается. Timeout оставляет неизвестный итог после одной HTTP
+  попытки без lookup/retry; ручной retrieve по сохранённому client ID документирован.
 - Current и Legacy OAS с checksum, архитектура, сравнение SDK и контракт Pay.
 - `xrocket.exchange` содержит только зарезервированный namespace.
 - Система сессий: карточки, очередь, промпты, handoffs и read-only helper.
@@ -120,6 +128,16 @@ request serialization/write transport) и 1982 full offline tests прошли
 wheel/sdist и wheel-only sync/async cheque/Unicode smoke прошли. Локальный commit —
 кандидат для отдельного review координатора; push/live mutations worker не выполняет.
 
+P011 correction затем принята и опубликована координатором до P012;
+evidence — [P011-02 review](reviews/P011-02.md).
+
+Задача [P012](handoffs/P012-01.md): 277 целевых и 2120 full offline tests прошли
+с session-loop override (40 live deselected); Ruff, strict mypy (32 files),
+wheel/sdist и wheel-only sync/async payout create smoke прошли. Timeout/duplicate
+проверены без скрытого второго запроса; ручной lookup тестируется отдельно.
+Локальный commit — candidate для независимого review координатора;
+push/live выплаты worker не выполняет.
+
 ## Ограничения и ближайшее направление
 
 Pay: остальные write methods и webhook verification/events ещё не реализованы.
@@ -138,7 +156,7 @@ PAY-016: create clientWithdrawalId допускает 150, GET — 100; обще
 
 Transport поддерживает GET/POST/PUT/DELETE под `/api/`; точный `/health` — только GET,
 без query/fragment в path. GET body не поддержан, mutations не повторяются.
-Следующая доступная задача — P012 (создание одиночного payout);
+Следующая доступная задача — P013 (mass payouts);
 она не начата. Продолжение — через `tools/session.py next`,
 чтение её карточки и handoff прямой зависимости по обычному протоколу.
 P019 завершена и включена в зависимости финальной P018.

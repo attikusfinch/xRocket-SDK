@@ -1,11 +1,11 @@
-"""Explicit single-page payout reads using the Current Pay routes."""
+"""Explicit payout reads and single-create requests using Current Pay routes."""
 
 from datetime import datetime
 
 from pydantic import TypeAdapter
 
 from xrocket._core.transport import AsyncTransport, Query, SyncTransport
-from xrocket.pay.models import CursorPage, Payout
+from xrocket.pay.models import CursorPage, Payout, PayoutCreateRequest
 
 _PAYOUT = TypeAdapter(Payout)
 _PAGE = TypeAdapter(CursorPage[Payout])
@@ -53,6 +53,18 @@ class PayoutsResource:
     def __init__(self, transport: SyncTransport) -> None:
         self._transport = transport
 
+    def create(self, *, request: PayoutCreateRequest) -> Payout:
+        """Send once; a timeout leaves the payout outcome unknown.
+
+        If supplied, use the saved client ID for an explicit ``retrieve`` after
+        a timeout. Duplicate API errors propagate; no retry or lookup is hidden.
+        """
+        if not isinstance(request, PayoutCreateRequest):
+            raise TypeError("request must be a PayoutCreateRequest")
+        return self._transport.request(
+            "POST", "/api/v1/payouts", _PAYOUT, success_statuses=(200,), body=request
+        )
+
     def list(
         self,
         *,
@@ -85,6 +97,18 @@ class PayoutsResource:
 class AsyncPayoutsResource:
     def __init__(self, transport: AsyncTransport) -> None:
         self._transport = transport
+
+    async def create(self, *, request: PayoutCreateRequest) -> Payout:
+        """Send once; a timeout leaves the payout outcome unknown.
+
+        If supplied, use the saved client ID for an explicit ``retrieve`` after
+        a timeout. Duplicate API errors propagate; no retry or lookup is hidden.
+        """
+        if not isinstance(request, PayoutCreateRequest):
+            raise TypeError("request must be a PayoutCreateRequest")
+        return await self._transport.request(
+            "POST", "/api/v1/payouts", _PAYOUT, success_statuses=(200,), body=request
+        )
 
     async def list(
         self,

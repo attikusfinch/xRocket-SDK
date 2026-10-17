@@ -384,6 +384,47 @@ Retrieve может вернуть отменённый чек с `deleted=true`
 `ChequeLinkResponseDto`, `ChequeCallbackResponseDto`, `ChequeUrlResponseDto`.
 Контракт проверяется offline; живые cheque records пока не проверялись.
 
+### `payouts.create(request=PayoutCreateRequest(...))`
+
+`POST /api/v1/payouts`, обязательный JWT, exact HTTP 200 с существующим `Payout`
+(`AppPayoutResponseDto`). Sync/async сигнатуры совпадают. Request DTO отделены
+от response, используют strict типы, camelCase aliases и extra forbid.
+`PayoutCreateRequest` и `PayoutCallbackRequest` публичны из `xrocket.pay`
+и `xrocket.pay.models`.
+
+| Python поле | Wire alias | Контракт create |
+|---|---|---|
+| target | target | required str, maxLength 100 |
+| target_type | targetType | required enum user_id / telegram_user_id / telegram_username |
+| asset | asset | required str, без enum/maxLength |
+| amount | amount | required finite Decimal/decimal string → точная JSON string |
+| client_payout_id | clientPayoutId | optional str, maxLength 50 |
+| description | description | optional str, maxLength в schema нет |
+| callback | callback | отдельный request DTO; callback_url max500, payload object |
+
+Все optional свойства, включая callback_url/payload внутри callback, можно
+опустить; explicit None запрещён по non-nullable OAS. `callback={}` и пустые
+строки/объекты сохраняются. MinLength, положительность/диапазон суммы и URL
+format schema не задаёт; SDK их не угадывает. Payload max4KB задан prose без
+size metric, локальное ограничение не вводится. Общий serializer повторно
+валидирует DTO до I/O, в том числе constructed/mutated значения; response DTO
+не сериализуются как request. Response status/target_type остаются открытыми
+строками, неизвестные поля сохраняются.
+
+Client ID принадлежит вызывающему коду: SDK его не генерирует, не заменяет и
+не добавляет при omission. HTTP 400 `/api/problems/payout_client_id_duplicate`
+проходит как обычный `APIError` с исходными problem/metadata. Скрытого retry
+или GET lookup нет. `RequestTimeoutError` оставляет неизвестный итог операции:
+после единственной HTTP попытки сервер мог создать payout. Сохраните стабильный
+client ID до отправки, затем при необходимости отдельно вызовите
+`payouts.retrieve(client_payout_id=saved_id)` (async — с `await`). Даже not-found
+не доказывает, что повтор безопасен: retention/scope/replay semantics не
+подтверждены. Без переданного client ID lookup по нему недоступен.
+
+Источники: `#/paths/~1api~1v1~1payouts/post`, `AppPayoutCreateRequestDto`,
+`PayoutCallbackRequestDto`, `AppPayoutResponseDto`. Проверено offline,
+live выплаты не выполнялись.
+
 ### `payouts.list(from_date=None, to_date=None, cursor=None, limit=None)`
 
 `GET /api/v1/payouts` с обязательным JWT возвращает одну `CursorPage[Payout]`.
@@ -565,6 +606,12 @@ Current errors описаны problem objects с обязательными `typ
 | mass-payout item | clientPayoutId | нет | maxLength 50 |
 
 В create descriptions cheque/payout/withdrawal IDs предназначены для предотвращения double spends. Из OAS нельзя установить срок хранения дедупликации, scope уникальности и означает ли повтор с тем же ID replay старого результата или ошибку. Документированы ошибки `client_id_already_taken`, `payout_client_id_duplicate`; для invoice это прежде всего client correlation ID. SDK не генерирует новый ID при retry и не скрывает duplicate response.
+
+После timeout одиночного payout итог неизвестен: SDK не повторяет POST и не
+делает автоматическую сверку. Ручной `payouts.retrieve(client_payout_id=...)`
+использует сохранённый вызывающим кодом ID. Отрицательный lookup не является
+подтверждением безопасности повтора; сама дедупликация пока проверена только
+на synthetic duplicate response, не на live сервере.
 
 Mass payouts возвращают `successPayouts` и `errorPayouts` внутри HTTP 200. Не считать весь batch успешным по HTTP status, не повторять весь batch при наличии частичных ошибок. Сначала необходим разбор по каждому item и подтверждённая семантика client ID.
 

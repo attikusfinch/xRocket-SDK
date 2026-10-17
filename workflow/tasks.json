@@ -277,13 +277,13 @@
     {
       "id": "P012",
       "title": "Создание одиночного payout",
-      "status": "todo",
+      "status": "done",
       "depends_on": [
         "P008",
         "P005"
       ],
       "card": "tasks/P012.md",
-      "handoff": null,
+      "handoff": "handoffs/P012-01.md",
       "operations": [
         {
           "method": "POST",

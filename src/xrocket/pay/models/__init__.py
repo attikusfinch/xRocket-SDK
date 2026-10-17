@@ -37,6 +37,7 @@ from .invoices import (
     InvoiceURL,
 )
 from .pagination import CursorPage, CursorPagination
+from .payout_requests import PayoutCallbackRequest, PayoutCreateRequest
 from .payouts import Payout, PayoutCallback
 from .rates import Rate
 from .withdrawals import Withdrawal, WithdrawalCallback, WithdrawalQuotas
@@ -80,6 +81,8 @@ __all__ = [
     "Money",
     "Payout",
     "PayoutCallback",
+    "PayoutCallbackRequest",
+    "PayoutCreateRequest",
     "Rate",
     "UnknownInvoiceTransaction",
     "Withdrawal",

@@ -39,6 +39,7 @@ Exchange запланирован отдельным модулем того ж�
 | `pay.cheques.delete(cheque_id=..., client_cheque_id=...)` | `DELETE /api/v1/cheques` |
 | `pay.payouts.list(from_date=..., to_date=..., cursor=..., limit=...)` | `GET /api/v1/payouts` |
 | `pay.payouts.retrieve(payout_id=..., client_payout_id=...)` | `GET /api/v1/payout` |
+| `pay.payouts.create(request=PayoutCreateRequest(...))` | `POST /api/v1/payouts` |
 | `pay.withdrawals.list(from_date=..., to_date=..., status=..., cursor=..., limit=...)` | `GET /api/v1/withdrawals` |
 | `pay.withdrawals.retrieve(withdrawal_id=..., client_withdrawal_id=...)` | `GET /api/v1/withdrawal` |
 | `pay.withdrawals.quotas(network=..., asset=...)` | `GET /api/v1/withdrawal-quotas` |
@@ -111,6 +112,22 @@ Cheque только на HTTP 200, delete — None на строго пусто�
 `payouts.retrieve()` требует хотя бы один непустой строковый ID до 100 символов
 и передаёт оба, если заданы оба. `Payout.amount` — точный `Decimal`, обязательные
 `status` / `target_type` принимают неизвестные строки, `callback` необязателен.
+`payouts.create()` принимает отдельный `PayoutCreateRequest` с обязательными
+`target` (до 100 символов), `target_type` (`user_id`, `telegram_user_id`,
+`telegram_username`), `asset` и `amount` (Decimal/decimal string → точная JSON string).
+Необязательны `client_payout_id` (до 50 символов), `description` без ограничения
+длины в schema и `PayoutCallbackRequest(callback_url=..., payload=...)`;
+callback URL — до 500 символов, payload — JSON object. DTO доступны из обоих
+public model import paths. Пропущенные поля не отправляются, explicit None запрещён.
+HTTP 200 возвращает `Payout`; async использует те же аргументы с `await`.
+
+Сохраните стабильный client ID до отправки payout. SDK не создаёт и не меняет
+его, duplicate API error передаётся вызывающему коду. `RequestTimeoutError`
+означает неизвестный итог: выплата могла быть создана. SDK делает одну HTTP
+попытку без автоматического lookup или повтора. После timeout выполните явный
+`pay.payouts.retrieve(client_payout_id=saved_id)` (в async — с `await`) для сверки.
+Это отдельный GET; not-found сам по себе не доказывает безопасность повторной
+выплаты. Срок и scope дедупликации сервером не подтверждены.
 `withdrawals.list()` возвращает одну `CursorPage[Withdrawal]` с такими же date/cursor/
 limit правилами, как payouts. Фильтр `status` принимает `CREATED`, `COMPLETED`, `FAIL`.
 В ответе status необязателен и допускает неизвестные строки с сохранением регистра.
@@ -128,7 +145,8 @@ HTTP ошибки сохраняют `status_code`, `problem`, `request_id`, `re
 P008 добавил внутренний фундамент записи: общий sync/async transport для
 POST/PUT/DELETE, отдельные request DTO и точную Decimal-сериализацию с aliases,
 missing/null и явной политикой JSON/пустого ответа. P009 добавил create/delete invoice,
-P010 — создание invoice payment address, P011 — create/update/delete cheques;
+P010 — создание invoice payment address, P011 — create/update/delete cheques,
+P012 — создание одиночного payout;
 остальные Pay write методы добавляются отдельными задачами с offline проверками.
 
 ## Установка для разработки

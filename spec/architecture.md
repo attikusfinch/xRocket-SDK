@@ -31,6 +31,7 @@ src/xrocket/
       invoice_payments.py # платежи invoice, transaction types и отдельная page
       invoice_requests.py # отдельные InvoiceCreate/Callback/URL/CustomerRequest
       cheque_requests.py # отдельные ChequeCreate/Update/Callback/URLRequest
+      payout_requests.py # отдельные PayoutCreateRequest / PayoutCallbackRequest
     resources/           # app, cheques, currencies, health, rates, invoices, payouts, withdrawals
   exchange/              # зарезервирован; исполняемого клиента пока нет
   py.typed
@@ -115,6 +116,13 @@ None означает только unset default; explicit null запрещён
 repr и обычные dumps скрывают его; validation input удаляется из field/model errors.
 Create/update возвращают Cheque на 200, delete ждёт пустой 200; все mutation paths
 plural, identifiers update/delete передаются в query прежним cheque helper.
+
+Single payout использует отдельный PayoutCreateRequest с required target,
+target_type, asset и RequestMoney amount. PayoutCallbackRequest не смешивается
+с PayoutCallback response. Client ID optional и принадлежит вызывающему коду;
+create возвращает существующий Payout только на 200. Timeout оставляет неизвестный
+итог после одной HTTP попытки; ручной retrieve по сохранённому client ID — отдельное
+действие, без автоматического lookup/retry или подавления duplicate API error.
 
 `SyncTransport.request()` / `AsyncTransport.request()` принимают GET/POST/PUT/DELETE,
 явный tuple success_statuses и response adapter: TypeAdapter означает JSON decode,
